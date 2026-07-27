@@ -321,49 +321,97 @@ async function exportExcel(type) {
         
         if (!exportData || exportData.length === 0) return alert("لا توجد بيانات حالية لتصديرها.");
 
-        // استخدام BOM لدعم اللغة العربية في ملفات CSV داخل الإكسل
-        let csvContent = "\uFEFF";
+        // بناء هيكل ملف إكسل متقدم (HTML Table مدعوم برمجياً من Excel)
+        let excelHTML = `
+            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+            <head>
+                <meta charset="utf-8">
+                <!-- إجبار الإكسل على عرض الجدول من اليمين لليسار وتنسيق الخطوط -->
+                <style>
+                    table { direction: rtl; border-collapse: collapse; font-family: Arial, sans-serif; }
+                    th, td { border: 1px solid #000000; padding: 10px; text-align: center; }
+                    th { background-color: #2b3a2f; color: #ffffff; font-weight: bold; font-size: 16px; }
+                    td { font-size: 14px; }
+                </style>
+            </head>
+            <body>
+                <table>
+        `;
         
+        // التفصيلي: كل حاجة في عمود لوحدها
         if (type === 'detailed') {
-            csvContent += "الاسم,نوع المعاملة,رقم المعاملة,الجهة/الفرع,التاريخ,الحالة,موضوع المذكرة\n";
+            excelHTML += `
+                <tr>
+                    <th>الاسم</th>
+                    <th>نوع المعاملة</th>
+                    <th>رقم المعاملة</th>
+                    <th>الجهة/الفرع</th>
+                    <th>التاريخ</th>
+                    <th>الحالة</th>
+                    <th>موضوع المذكرة</th>
+                </tr>
+            `;
+            
             exportData.forEach(row => {
                 if(!row) return;
                 let dateStr = row[14] ? new Date(row[14]).toLocaleDateString('ar-EG') : "-";
                 
-                // تنظيف النصوص من الفواصل حتى لا يتكسر الجدول
-                let rowData = [
-                    String(row[10] || "غير متوفر").replace(/,/g, " - "),
-                    String(row[4] || "غير متوفر").replace(/,/g, " - "),
-                    String(row[0] || "-").replace(/,/g, " - "),
-                    String(row[3] || "-").replace(/,/g, " - "),
-                    dateStr.replace(/,/g, " - "),
-                    String(row[17] || "مستمرة").replace(/,/g, " - "),
-                    String(row[19] || "-").replace(/,/g, " - ")
-                ];
-                csvContent += rowData.join(",") + "\n";
+                excelHTML += `
+                    <tr>
+                        <td>${row[10] || "غير متوفر"}</td>
+                        <td>${row[4] || "غير متوفر"}</td>
+                        <td>${row[0] || "-"}</td>
+                        <td>${row[3] || "-"}</td>
+                        <td>${dateStr}</td>
+                        <td>${row[17] || "مستمرة"}</td>
+                        <td>${row[19] || "-"}</td>
+                    </tr>
+                `;
             });
         } 
+        // الإحصائي: العدد في بند والموضوع/النوع في بند والجهة في بند
         else if (type === 'stats') {
-            csvContent += "نوع المعاملة / الموضوع,الجهة,العدد المنجز\n";
+            excelHTML += `
+                <tr>
+                    <th>نوع المعاملة / الموضوع</th>
+                    <th>الجهة</th>
+                    <th>العدد المنجز</th>
+                </tr>
+            `;
+            
             let grouped = {};
             exportData.forEach(row => {
                 if(!row) return;
-                let key = String(row[4] || "غير محدد") + "," + String(row[3] || "غير محدد");
+                // دمج النوع والجهة كـمفتاح للفرز
+                let key = String(row[4] || "غير محدد") + "|||" + String(row[3] || "غير محدد");
                 grouped[key] = (grouped[key] || 0) + 1;
             });
 
             for (let k in grouped) {
-                csvContent += k + "," + grouped[k] + "\n";
+                let parts = k.split("|||");
+                excelHTML += `
+                    <tr>
+                        <td>${parts[0]}</td>
+                        <td>${parts[1]}</td>
+                        <td><strong>${grouped[k]}</strong></td>
+                    </tr>
+                `;
             }
         }
 
-        // إنشاء الملف وتحميله مباشرة
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        excelHTML += `
+                </table>
+            </body>
+            </html>
+        `;
+
+        // إنشاء ملف XLS وتنزيله 
+        const blob = new Blob([excelHTML], { type: 'application/vnd.ms-excel' });
         const link = document.createElement("a");
         const url = URL.createObjectURL(blob);
         
         link.setAttribute("href", url);
-        link.setAttribute("download", type === 'detailed' ? "تقرير_تفصيلي.csv" : "تقرير_احصائي.csv");
+        link.setAttribute("download", type === 'detailed' ? "تقرير_تفصيلي.xls" : "تقرير_احصائي.xls");
         link.style.visibility = 'hidden';
         
         document.body.appendChild(link);
