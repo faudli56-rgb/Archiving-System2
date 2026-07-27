@@ -281,42 +281,57 @@ async function loadStats() {
     if(allTransactionsData.length === 0) loadTransactionLog();
 }
 
-function exportExcel(type) {
-    if(allTransactionsData.length === 0) return alert("لا توجد بيانات للتصدير حالياً.");
-    
-    let ws_data = [];
-    
-    if(type === 'detailed') {
-        // تقرير تفصيلي (اسم، نوع، رقم، جهة)
-        ws_data.push(["الاسم", "نوع المعاملة", "رقم المعاملة", "الجهة/الفرع", "التاريخ", "الحالة"]);
-        allTransactionsData.forEach(row => {
-            ws_data.push([row[10]||"", row[4]||"", row[0]||"", row[3]||"", row[14]||"", row[17]||""]);
-        });
-    } 
-    else if(type === 'stats') {
-        // تقرير إحصائي (تجميع حسب النوع والجهة)
-        ws_data.push(["نوع المعاملة / الموضوع", "الجهة", "العدد المنجز"]);
-        
-        let grouped = {};
-        allTransactionsData.forEach(row => {
-            let typeKey = row[4] || "غير محدد";
-            let branchKey = row[3] || "غير محدد";
-            let key = typeKey + "|" + branchKey;
-            grouped[key] = (grouped[key] || 0) + 1;
-        });
-
-        for(let k in grouped) {
-            let parts = k.split("|");
-            ws_data.push([parts[0], parts[1], grouped[k]]);
+async function exportExcel(type) {
+    try {
+        // إذا كانت البيانات فارغة، نقوم بجلبها أولاً
+        if(allTransactionsData.length === 0) {
+            alert("جاري جلب البيانات من السيرفر للتصدير، يرجى الانتظار لحظات...");
+            const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'get_all' }) });
+            const result = await response.json();
+            if (result.success) {
+                allTransactionsData = result.data;
+            } else {
+                return alert("فشل جلب البيانات للتصدير.");
+            }
         }
+        
+        let ws_data = [];
+        
+        if(type === 'detailed') {
+            // تقرير تفصيلي
+            ws_data.push(["الاسم", "نوع المعاملة", "رقم المعاملة", "الجهة/الفرع", "التاريخ", "الحالة"]);
+            allTransactionsData.forEach(row => {
+                ws_data.push([row[10]||"", row[4]||"", row[0]||"", row[3]||"", row[14]||"", row[17]||""]);
+            });
+        } 
+        else if(type === 'stats') {
+            // تقرير إحصائي
+            ws_data.push(["نوع المعاملة / الموضوع", "الجهة", "العدد المنجز"]);
+            
+            let grouped = {};
+            allTransactionsData.forEach(row => {
+                let typeKey = row[4] || "غير محدد";
+                let branchKey = row[3] || "غير محدد";
+                let key = typeKey + " | " + branchKey;
+                grouped[key] = (grouped[key] || 0) + 1;
+            });
+
+            for(let k in grouped) {
+                let parts = k.split(" | ");
+                ws_data.push([parts[0], parts[1], grouped[k]]);
+            }
+        }
+
+        // إنشاء وتنزيل ملف الإكسل
+        const ws = XLSX.utils.aoa_to_sheet(ws_data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "التقرير");
+        XLSX.writeFile(wb, type === 'detailed' ? "تقرير_تفصيلي.xlsx" : "تقرير_احصائي.xlsx");
+        
+    } catch (error) {
+        alert("حدث خطأ أثناء تصدير الإكسل: " + error.message);
     }
-
-    const ws = XLSX.utils.aoa_to_sheet(ws_data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "التقرير");
-    XLSX.writeFile(wb, type === 'detailed' ? "تقرير_تفصيلي.xlsx" : "تقرير_احصائي.xlsx");
 }
-
 // ==========================================
 // المذكرات الصادرة والذكاء الاصطناعي
 // ==========================================
