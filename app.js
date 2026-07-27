@@ -461,3 +461,33 @@ async function exportMemo() {
         }
     } catch (e) { document.getElementById('memo-loading').style.display = 'none'; }
 }
+// دالة البحث السريع (الفلترة) داخل جدول سجل المعاملات
+function filterLogTable() {
+    const input = document.getElementById("log-search-input").value.toLowerCase();
+    const table = document.querySelector("#log-results .report-table");
+    
+    // إذا لم يكن الجدول محملاً بعد، نوقف العملية
+    if (!table) return; 
+    
+    const trs = table.getElementsByTagName("tr");
+    
+    // نبدأ من 1 لتخطي صف العناوين الأول (رأس الجدول)
+    for (let i = 1; i < trs.length; i++) {
+        const tds = trs[i].getElementsByTagName("td");
+        let rowContainsSearchTerm = false;
+        
+        if (tds.length > 0) {
+            // tds[0] هو الاسم، و tds[2] هو رقم المعاملة (بناءً على ترتيب الجدول)
+            const nameCell = tds[0].textContent || tds[0].innerText;
+            const transNumCell = tds[2].textContent || tds[2].innerText;
+            
+            // التحقق مما إذا كان النص المدخل موجوداً في الاسم أو في رقم المعاملة
+            if (nameCell.toLowerCase().includes(input) || transNumCell.toLowerCase().includes(input)) {
+                rowContainsSearchTerm = true;
+            }
+        }
+        
+        // إظهار أو إخفاء الصف بناءً على نتيجة البحث
+        trs[i].style.display = rowContainsSearchTerm ? "" : "none";
+    }
+}
