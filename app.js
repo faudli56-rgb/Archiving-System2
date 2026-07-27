@@ -298,93 +298,40 @@ async function loadStats() {
     // جلب البيانات الأساسية للتمكن من تصديرها لاحقاً
     if(allTransactionsData.length === 0) loadTransactionLog();
 }
-async function exportExcel(type) {
-    try {
-        let exportData = allTransactionsData;
-        
-        // جلب البيانات إذا كانت فارغة
-        if (!exportData || exportData.length === 0) {
-            const reportDiv = document.getElementById('report-results');
-            if (reportDiv) reportDiv.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري جلب البيانات...';
-            
-            const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'get_all' }) });
-            const result = await response.json();
-            
-            if (result.success && result.data) {
-                exportData = result.data;
-                allTransactionsData = result.data;
-                if (reportDiv) reportDiv.innerHTML = '';
-            } else {
-                return alert("فشل جلب البيانات.");
-            }
-        }
-        
-        if (!exportData || exportData.length === 0) return alert("لا توجد بيانات حالية لتصديرها.");
-
-        // بناء هيكل ملف إكسل متقدم (HTML Table مدعوم برمجياً من Excel)
-        let excelHTML = `
-            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-            <head>
-                <meta charset="utf-8">
-                <!-- إجبار الإكسل على عرض الجدول من اليمين لليسار وتنسيق الخطوط -->
-                <style>
-                    table { direction: rtl; border-collapse: collapse; font-family: Arial, sans-serif; }
-                    th, td { border: 1px solid #000000; padding: 10px; text-align: center; }
-                    th { background-color: #2b3a2f; color: #ffffff; font-weight: bold; font-size: 16px; }
-                    td { font-size: 14px; }
-                </style>
-            </head>
-            <body>
-                <table>
-        `;
-        
-        // التفصيلي: كل حاجة في عمود لوحدها
-        if (type === 'detailed') {
-            excelHTML += `
-                <tr>
-                    <th>الاسم</th>
-                    <th>نوع المعاملة</th>
-                    <th>رقم المعاملة</th>
-                    <th>الجهة/الفرع</th>
-                    <th>التاريخ</th>
-                    <th>الحالة</th>
-                    <th>موضوع المذكرة</th>
-                </tr>
-            `;
-            
-            exportData.forEach(row => {
-                if(!row) return;
-                let dateStr = row[14] ? new Date(row[14]).toLocaleDateString('ar-EG') : "-";
-                
-                excelHTML += `
-                    <tr>
-                        <td>${row[10] || "غير متوفر"}</td>
-                        <td>${row[4] || "غير متوفر"}</td>
-                        <td>${row[0] || "-"}</td>
-                        <td>${row[3] || "-"}</td>
-                        <td>${dateStr}</td>
-                        <td>${row[17] || "مستمرة"}</td>
-                        <td>${row[19] || "-"}</td>
-                    </tr>
-                `;
-            });
-        } 
-        // الإحصائي: العدد في بند والموضوع/النوع في بند والجهة في بند
+// الإحصائي: العدد المكتمل والمستمر والإجمالي
         else if (type === 'stats') {
             excelHTML += `
                 <tr>
                     <th>نوع المعاملة / الموضوع</th>
                     <th>الجهة</th>
-                    <th>العدد المنجز</th>
+                    <th>المعاملات المكتملة</th>
+                    <th>المعاملات المستمرة</th>
+                    <th>الإجمالي</th>
                 </tr>
             `;
             
             let grouped = {};
             exportData.forEach(row => {
                 if(!row) return;
-                // دمج النوع والجهة كـمفتاح للفرز
-                let key = String(row[4] || "غير محدد") + "|||" + String(row[3] || "غير محدد");
-                grouped[key] = (grouped[key] || 0) + 1;
+                let typeKey = String(row[4] || "غير محدد");
+                let branchKey = String(row[3] || "غير محدد");
+                let status = String(row[17] || "مستمرة"); // العمود 17 يحتوي على الحالة
+                
+                let key = typeKey + "|||" + branchKey;
+                
+                // تهيئة الكائن إذا لم يكن موجوداً
+                if (!grouped[key]) {
+                    grouped[key] = { completed: 0, ongoing: 0, total: 0 };
+                }
+                
+                grouped[key].total += 1;
+                
+                // فحص الحالة (إذا كانت تحتوي على كلمة "مستمرة")
+                if (status.includes("مستمرة")) {
+                    grouped[key].ongoing += 1;
+                } else {
+                    grouped[key].completed += 1;
+                }
             });
 
             for (let k in grouped) {
@@ -393,35 +340,13 @@ async function exportExcel(type) {
                     <tr>
                         <td>${parts[0]}</td>
                         <td>${parts[1]}</td>
-                        <td><strong>${grouped[k]}</strong></td>
+                        <td style="color: green; font-weight: bold;">${grouped[k].completed}</td>
+                        <td style="color: red; font-weight: bold;">${grouped[k].ongoing}</td>
+                        <td style="background-color: #f0f0f0;"><strong>${grouped[k].total}</strong></td>
                     </tr>
                 `;
             }
         }
-
-        excelHTML += `
-                </table>
-            </body>
-            </html>
-        `;
-
-        // إنشاء ملف XLS وتنزيله 
-        const blob = new Blob([excelHTML], { type: 'application/vnd.ms-excel' });
-        const link = document.createElement("a");
-        const url = URL.createObjectURL(blob);
-        
-        link.setAttribute("href", url);
-        link.setAttribute("download", type === 'detailed' ? "تقرير_تفصيلي.xls" : "تقرير_احصائي.xls");
-        link.style.visibility = 'hidden';
-        
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-    } catch (error) {
-        alert("حدث خطأ أثناء التصدير: " + error.message);
-    }
-}
 // ==========================================
 // المذكرات الصادرة والذكاء الاصطناعي
 // ==========================================
