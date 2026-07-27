@@ -95,28 +95,32 @@ body { background-color: var(--bg-color); color: var(--text-dark); display: flex
     background-color: var(--primary-color); 
 }
 @media (max-width: 768px) {
-    /* 1. جعل شريط التنقل أبيض بالكامل في الجوال مع خط سفلي زيتي للجمالية */
+    /* 1. جعل شريط التنقل أبيض بالكامل في الجوال */
     .navbar { 
         background-color: #ffffff !important; 
         border-bottom: 3px solid var(--primary-color) !important;
     }
     
-    /* 2. تغيير لون الشعار والعنوان للزيتي الغامق ليظهر على الخلفية البيضاء */
+    /* 2. تغيير لون الشعار والعنوان للزيتي الغامق */
     .nav-title, .nav-title i {
         color: var(--primary-color) !important; 
     }
     
-    /* 3. إظهار زر القائمة باللون الأسود الغامق ليكون بارزاً جداً */
+    /* 3. إظهار حاوية الزر */
     .menu-toggle { 
         display: block !important; 
         font-size: 32px !important; 
-        color: #000000 !important; /* لون أسود صريح */
         cursor: pointer;
         padding: 5px;
         z-index: 9999;
     }
+
+    /* 4. إجبار الأيقونة (الثلاث الشرط) على أن تكون باللون الأسود الواضح */
+    .menu-toggle i {
+        color: #000000 !important; 
+    }
     
-    /* 4. تنسيق القائمة المنسدلة (تظل باللون الزيتي لتناسق التصميم) */
+    /* 5. تنسيق القائمة المنسدلة (تظل باللون الزيتي) */
     .nav-links { 
         display: none; 
         flex-direction: column; 
