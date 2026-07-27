@@ -95,12 +95,51 @@ body { background-color: var(--bg-color); color: var(--text-dark); display: flex
     background-color: var(--primary-color); 
 }
 @media (max-width: 768px) {
+    /* 1. جعل شريط التنقل أبيض بالكامل في الجوال مع خط سفلي زيتي للجمالية */
+    .navbar { 
+        background-color: #ffffff !important; 
+        border-bottom: 3px solid var(--primary-color) !important;
+    }
+    
+    /* 2. تغيير لون الشعار والعنوان للزيتي الغامق ليظهر على الخلفية البيضاء */
+    .nav-title, .nav-title i {
+        color: var(--primary-color) !important; 
+    }
+    
+    /* 3. إظهار زر القائمة باللون الأسود الغامق ليكون بارزاً جداً */
     .menu-toggle { 
         display: block !important; 
         font-size: 32px !important; 
-        color: #ffffff !important; /* لون أبيض ناصع */
-        text-shadow: 0px 2px 5px rgba(0,0,0,0.8); /* ظل أسود لإبرازه فوق اللون الزيتي */
+        color: #000000 !important; /* لون أسود صريح */
+        cursor: pointer;
         padding: 5px;
         z-index: 9999;
+    }
+    
+    /* 4. تنسيق القائمة المنسدلة (تظل باللون الزيتي لتناسق التصميم) */
+    .nav-links { 
+        display: none; 
+        flex-direction: column; 
+        width: 100%; 
+        position: absolute; 
+        top: 100%; 
+        left: 0; 
+        background-color: var(--primary-color) !important; 
+        padding: 10px; 
+        z-index: 1000; 
+        text-align: right; 
+    }
+    
+    /* إظهار القائمة عند الضغط */
+    .nav-links.show { 
+        display: flex !important; 
+    }
+    
+    /* تنسيق أزرار القائمة */
+    .nav-btn { 
+        padding: 12px; 
+        border-bottom: 1px solid rgba(255,255,255,0.05); 
+        width: 100%; 
+        text-align: right; 
     }
 }
