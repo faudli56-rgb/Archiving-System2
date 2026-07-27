@@ -6,7 +6,19 @@ let imageBase64Data = "";
 let allTransactionsData = []; // لحفظ البيانات للإكسل
 
 function toggleMenu() {
-    document.getElementById('nav-links').classList.toggle('show');
+    const navLinks = document.getElementById('nav-links');
+    if (navLinks.style.display === 'flex') {
+        navLinks.style.display = 'none';
+    } else {
+        navLinks.style.display = 'flex';
+        navLinks.style.flexDirection = 'column';
+        navLinks.style.position = 'absolute';
+        navLinks.style.top = '100%';
+        navLinks.style.left = '0';
+        navLinks.style.width = '100%';
+        navLinks.style.background = '#2b3a2f'; // لون الخلفية الزيتي
+        navLinks.style.zIndex = '9999'; // لضمان ظهورها فوق كل شيء
+    }
 }
 
 function showScreen(screenId) {
