@@ -300,102 +300,77 @@ async function loadStats() {
 }
 async function exportExcel(type) {
     try {
-        // 1. التحقق من أن مكتبة الإكسل تعمل وموجودة
-        if (typeof XLSX === 'undefined') {
-            alert("مكتبة الإكسل لم يتم تحميلها بعد. يرجى الانتظار قليلاً أو التأكد من اتصالك بالإنترنت.");
-            return;
-        }
-
         let exportData = allTransactionsData;
         
-        // 2. جلب البيانات من السيرفر إذا كانت المصفوفة فارغة
+        // جلب البيانات إذا كانت فارغة
         if (!exportData || exportData.length === 0) {
             const reportDiv = document.getElementById('report-results');
-            if (reportDiv) reportDiv.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري جلب البيانات للتصدير...';
+            if (reportDiv) reportDiv.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري جلب البيانات...';
             
-            const response = await fetch(APPS_SCRIPT_URL, { 
-                method: 'POST', 
-                body: JSON.stringify({ action: 'get_all' }) 
-            });
+            const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'get_all' }) });
             const result = await response.json();
             
             if (result.success && result.data) {
                 exportData = result.data;
-                allTransactionsData = result.data; // حفظها محلياً
-                if (reportDiv) reportDiv.innerHTML = ''; // إخفاء رسالة التحميل
-            } else {
+                allTransactionsData = result.data;
                 if (reportDiv) reportDiv.innerHTML = '';
-                alert("فشل جلب البيانات من السيرفر. تأكد من الاتصال وصلاحيات الوصول.");
-                return;
+            } else {
+                return alert("فشل جلب البيانات.");
             }
         }
         
-        // التحقق النهائي من وجود بيانات
-        if (!exportData || exportData.length === 0) {
-            alert("لا توجد بيانات حالية لتصديرها.");
-            return;
-        }
+        if (!exportData || exportData.length === 0) return alert("لا توجد بيانات حالية لتصديرها.");
 
-        let ws_data = [];
+        // استخدام BOM لدعم اللغة العربية في ملفات CSV داخل الإكسل
+        let csvContent = "\uFEFF";
         
-        // 3. بناء هيكل البيانات بشكل آمن وتلافي القيم الفارغة (null/undefined)
         if (type === 'detailed') {
-            ws_data.push(["الاسم", "نوع المعاملة", "رقم المعاملة", "الجهة/الفرع", "التاريخ", "الحالة", "موضوع المذكرة"]);
-            
+            csvContent += "الاسم,نوع المعاملة,رقم المعاملة,الجهة/الفرع,التاريخ,الحالة,موضوع المذكرة\n";
             exportData.forEach(row => {
-                if(!row) return; // تخطي أي صف تالف بالكامل
+                if(!row) return;
+                let dateStr = row[14] ? new Date(row[14]).toLocaleDateString('ar-EG') : "-";
                 
-                // معالجة التاريخ بشكل آمن
-                let dateStr = "-";
-                if (row[14]) {
-                    try {
-                        dateStr = new Date(row[14]).toLocaleDateString('ar-EG');
-                    } catch(e) {
-                        dateStr = String(row[14]); // تحويله لنص كحل بديل إذا فشل التنسيق
-                    }
-                }
-
-                ws_data.push([
-                    String(row[10] || "غير متوفر"), // الاسم
-                    String(row[4] || "غير متوفر"),  // نوع المعاملة
-                    String(row[0] || "-"),          // رقم المعاملة
-                    String(row[3] || "-"),          // الجهة
-                    dateStr,                        // التاريخ
-                    String(row[17] || "مستمرة"),    // الحالة
-                    String(row[19] || "-")          // الموضوع
-                ]);
+                // تنظيف النصوص من الفواصل حتى لا يتكسر الجدول
+                let rowData = [
+                    String(row[10] || "غير متوفر").replace(/,/g, " - "),
+                    String(row[4] || "غير متوفر").replace(/,/g, " - "),
+                    String(row[0] || "-").replace(/,/g, " - "),
+                    String(row[3] || "-").replace(/,/g, " - "),
+                    dateStr.replace(/,/g, " - "),
+                    String(row[17] || "مستمرة").replace(/,/g, " - "),
+                    String(row[19] || "-").replace(/,/g, " - ")
+                ];
+                csvContent += rowData.join(",") + "\n";
             });
         } 
         else if (type === 'stats') {
-            ws_data.push(["نوع المعاملة / الموضوع", "الجهة", "العدد المنجز"]);
+            csvContent += "نوع المعاملة / الموضوع,الجهة,العدد المنجز\n";
             let grouped = {};
-            
             exportData.forEach(row => {
                 if(!row) return;
-                let typeKey = String(row[4] || "غير محدد");
-                let branchKey = String(row[3] || "غير محدد");
-                let key = typeKey + " | " + branchKey;
+                let key = String(row[4] || "غير محدد") + "," + String(row[3] || "غير محدد");
                 grouped[key] = (grouped[key] || 0) + 1;
             });
 
             for (let k in grouped) {
-                let parts = k.split(" | ");
-                ws_data.push([parts[0], parts[1], grouped[k]]);
+                csvContent += k + "," + grouped[k] + "\n";
             }
         }
 
-        // 4. إنشاء الملف وتنزيله
-        const ws = XLSX.utils.aoa_to_sheet(ws_data);
-        ws['!dir'] = 'rtl'; // التوجيه من اليمين لليسار ليناسب اللغة العربية
+        // إنشاء الملف وتحميله مباشرة
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
         
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "التقرير");
+        link.setAttribute("href", url);
+        link.setAttribute("download", type === 'detailed' ? "تقرير_تفصيلي.csv" : "تقرير_احصائي.csv");
+        link.style.visibility = 'hidden';
         
-        const fileName = type === 'detailed' ? "تقرير_تفصيلي.xlsx" : "تقرير_احصائي.xlsx";
-        XLSX.writeFile(wb, fileName);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
         
     } catch (error) {
-        console.error("تفاصيل الخطأ:", error); // لطباعة الخطأ بدقة في لوحة المطورين
         alert("حدث خطأ أثناء التصدير: " + error.message);
     }
 }
