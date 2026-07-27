@@ -34,12 +34,17 @@
 
     <!-- شاشة النظام الرئيسية -->
     <div id="app-section" class="screen">
-        <!-- شريط التنقل المتوافق مع الجوال -->
-        <nav class="navbar">
+       <!-- شريط التنقل المتوافق مع الجوال -->
+        <nav class="navbar" style="position: relative; display: flex; justify-content: space-between; align-items: center;">
             <div class="nav-title">
                 <i class="fa-solid fa-shield"></i> الأرشيف العسكري
             </div>
-            <div class="menu-toggle" onclick="toggleMenu()"><i class="fa-solid fa-bars"></i></div>
+            
+            <!-- زر القائمة أضفنا له تصميم إجباري للظهور -->
+            <div class="menu-toggle" onclick="toggleMenu()" style="font-size: 28px; cursor: pointer; color: var(--accent-color); padding: 5px; z-index: 1001;">
+                <i class="fa-solid fa-bars"></i>
+            </div>
+            
             <div class="nav-links" id="nav-links">
                 <button onclick="showTab('scan-tab')" class="nav-btn active"><i class="fa-solid fa-camera"></i> إضافة معاملة</button>
                 <button onclick="showTab('log-tab')" class="nav-btn"><i class="fa-solid fa-list-check"></i> سجل المعاملات</button>
@@ -49,7 +54,6 @@
                 <button onclick="logout()" class="nav-btn logout-btn"><i class="fa-solid fa-power-off"></i> خروج</button>
             </div>
         </nav>
-
         <!-- 1. قسم مسح المستندات -->
         <div id="scan-tab" class="tab-content active-tab">
             <div class="card">
