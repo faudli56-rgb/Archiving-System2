@@ -87,3 +87,15 @@ body { background-color: var(--bg-color); color: var(--text-dark); display: flex
 /* Sticky First Column for Mobile Data Integrity */
 .report-table th:first-child, .report-table td:first-child { position: sticky; right: 0; background-color: #f1f2f6; z-index: 1; font-weight: bold; border-left: 1px solid #ddd; }
 .report-table th:first-child { background-color: var(--primary-color); z-index: 2; }
+@media (max-width: 768px) {
+    .nav-links.show { 
+        display: flex !important; 
+        flex-direction: column;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        width: 100%;
+        background: #2b3a2f;
+        z-index: 9999;
+    }
+}
