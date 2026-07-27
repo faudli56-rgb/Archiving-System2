@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام الأرشفة العسكرية</title>
+    <!-- جلب أيقونات احترافية -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- ربط ملف التصميم -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- شاشة تسجيل الدخول -->
+    <div id="login-section" class="screen active-screen">
+        <div class="login-box">
+            <div class="logo-area">
+                <i class="fa-solid fa-shield-halved military-icon"></i>
+                <h2>نظام الأرشفة العسكرية</h2>
+                <p>بوابة الدخول الآمنة</p>
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-user"></i>
+                <input type="text" id="username" placeholder="اسم المستخدم (فؤاد / عبدالخالق)">
+            </div>
+            <div class="input-group">
+                <i class="fa-solid fa-lock"></i>
+                <input type="password" id="password" placeholder="كلمة المرور">
+            </div>
+            <button onclick="login()" class="primary-btn"><i class="fa-solid fa-right-to-bracket"></i> تسجيل الدخول</button>
+            <p id="login-error" class="error-msg"></p>
+        </div>
+    </div>
+
+    <!-- شاشة النظام الرئيسية -->
+    <div id="app-section" class="screen">
+        <!-- شريط التنقل -->
+        <nav class="navbar">
+            <div class="nav-title">
+                <i class="fa-solid fa-shield"></i> الأرشفة العسكرية
+            </div>
+            <div class="nav-links">
+                <button onclick="showTab('scan-tab')" class="nav-btn active"><i class="fa-solid fa-camera"></i> مسح معاملة</button>
+                <button onclick="showTab('search-tab')" class="nav-btn"><i class="fa-solid fa-magnifying-glass"></i> البحث</button>
+                <button onclick="showTab('stats-tab')" class="nav-btn"><i class="fa-solid fa-chart-pie"></i> الإحصائيات</button>
+                <button onclick="logout()" class="nav-btn logout-btn"><i class="fa-solid fa-power-off"></i> خروج</button>
+            </div>
+        </nav>
+
+        <!-- قسم مسح المستندات -->
+        <div id="scan-tab" class="tab-content active-tab">
+            <div class="card">
+                <h3><i class="fa-solid fa-file-signature"></i> إدخال معاملة جديدة</h3>
+                <p class="subtitle">قم بتصوير المستند وسيتم استخراج البيانات وحفظها برقم المعاملة واسم الفرد تلقائياً.</p>
+                
+                <div class="upload-area">
+                    <input type="file" id="document-image" accept="image/*" capture="environment" onchange="previewImage(event)">
+                    <label for="document-image" class="upload-label">
+                        <i class="fa-solid fa-camera-retro"></i>
+                        <span>التقط صورة أو اختر ملف</span>
+                    </label>
+                </div>
+                
+                <img id="image-preview" style="display: none; max-width: 100%; border-radius: 8px; margin-top: 15px;">
+                
+                <button id="process-btn" onclick="processDocument()" class="primary-btn" style="display: none; margin-top: 15px; width: 100%;">
+                    <i class="fa-solid fa-microchip"></i> تحليل وحفظ البيانات
+                </button>
+
+                <div id="loading-spinner" class="loading" style="display: none;">
+                    <i class="fa-solid fa-circle-notch fa-spin"></i> جاري التحليل والتشفير...
+                </div>
+
+                <div id="result-box" class="result-box" style="display: none;">
+                    <h4 class="success-text"><i class="fa-solid fa-circle-check"></i> تم الحفظ بنجاح!</h4>
+                    <p>تم رفع الصورة إلى Google Drive وتفريغ البيانات في Google Sheets.</p>
+                    <button id="whatsapp-btn" class="whatsapp-btn"><i class="fa-brands fa-whatsapp"></i> مشاركة البيانات عبر واتساب</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- قسم البحث -->
+        <div id="search-tab" class="tab-content">
+            <div class="card">
+                <h3><i class="fa-solid fa-file-shield"></i> البحث والأرشيف</h3>
+                <div class="search-bar">
+                    <input type="text" id="search-query" placeholder="ابحث بالاسم أو اللقب أو الرقم العسكري...">
+                    <button onclick="searchRecords()" class="primary-btn"><i class="fa-solid fa-magnifying-glass"></i> بحث</button>
+                </div>
+                <div id="search-loading" class="loading" style="display: none;">
+                    <i class="fa-solid fa-circle-notch fa-spin"></i> جاري البحث...
+                </div>
+                <div id="search-results" class="results-container">
+                    <!-- ستظهر النتائج هنا -->
+                </div>
+            </div>
+        </div>
+
+        <!-- قسم الإحصائيات -->
+        <div id="stats-tab" class="tab-content">
+            <div class="card">
+                <h3><i class="fa-solid fa-chart-column"></i> إحصائيات النظام</h3>
+                <button onclick="loadStats()" class="secondary-btn" style="margin-bottom: 20px;"><i class="fa-solid fa-rotate-right"></i> تحديث البيانات</button>
+                
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <i class="fa-solid fa-calendar-day"></i>
+                        <h4>إنجاز اليوم</h4>
+                        <span id="stat-today">0</span>
+                    </div>
+                    <div class="stat-box">
+                        <i class="fa-solid fa-calendar-days"></i>
+                        <h4>إنجاز الشهر</h4>
+                        <span id="stat-month">0</span>
+                    </div>
+                    <div class="stat-box">
+                        <i class="fa-solid fa-cubes"></i>
+                        <h4>إجمالي المعاملات</h4>
+                        <span id="stat-total">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- التذييل الثابت -->
+    <footer>
+        <p>تم تطوير هذا النظام 2026 بواسطة فؤاد العميسي 777644293</p>
+    </footer>
+
+    <!-- ربط ملف البرمجة -->
+    <script src="app.js"></script>
+</body>
+</html>
