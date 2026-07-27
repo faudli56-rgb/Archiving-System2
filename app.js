@@ -100,47 +100,72 @@ async function processDocument() {
     }
 }
 
-// تحديث نموذج الإدخال ليشمل رقم الهاتف والتاريخ المستخرج
+// تحديث نموذج الإدخال ليشمل جميع البيانات (القديمة + الجديدة)
 function renderEditForm(data) {
     const ind = (data.individuals && data.individuals[0]) ? data.individuals[0] : {};
     
     let html = `
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <!-- الحقول الجديدة للإضافة اليدوية والمستخرجة حديثاً -->
             <div class="input-group" style="grid-column: span 2;">
                 <input type="text" id="edit-phone" placeholder="رقم هاتف صاحب المعاملة (إدخال يدوي)" style="border-color: var(--accent-color);">
             </div>
             <div class="input-group"><input type="text" id="edit-extracted-date" value="${data.extracted_date || ''}" placeholder="تاريخ أسفل الورقة (إن وجد)"></div>
             <div class="input-group"><input type="text" id="edit-subject" value="${data.memo_subject || ''}" placeholder="موضوع المذكرة"></div>
             
+            <!-- الحقول الأساسية الأصلية -->
             <div class="input-group"><input type="text" id="edit-trans-num" value="${data.transaction_number || ''}" placeholder="رقم المعاملة"></div>
             <div class="input-group"><input type="text" id="edit-date" value="${data.receipt_date || ''}" placeholder="تاريخ الاستلام"></div>
             
-            <div class="input-group"><input type="text" id="edit-type" value="${data.transaction_type || ''}" placeholder="نوع المعاملة"></div>
+            <div class="input-group"><input type="text" id="edit-ben-count" value="${data.beneficiaries_count || ''}" placeholder="عدد المستفيدين"></div>
             <div class="input-group"><input type="text" id="edit-branch" value="${data.branch || ''}" placeholder="الفرع / الجهة"></div>
             
-            <div class="input-group" style="grid-column: span 2;"><input type="text" id="edit-name" value="${ind.name || ''}" placeholder="الاسم"></div>
+            <div class="input-group"><input type="text" id="edit-type" value="${data.transaction_type || ''}" placeholder="نوع المعاملة"></div>
+            <div class="input-group"><input type="text" id="edit-source" value="${data.source || ''}" placeholder="المصدر"></div>
+            
+            <div class="input-group"><input type="text" id="edit-receiver" value="${data.receiver || ''}" placeholder="المستلم"></div>
+            <div class="input-group"><input type="text" id="edit-deliverer" value="${data.deliverer || ''}" placeholder="المُسلّم"></div>
+            
+            <!-- بيانات الفرد -->
             <div class="input-group"><input type="text" id="edit-mil-num" value="${ind.military_number || ''}" placeholder="الرقم العسكري"></div>
+            <div class="input-group"><input type="text" id="edit-rank" value="${ind.rank || ''}" placeholder="الرتبة"></div>
+            
+            <div class="input-group" style="grid-column: span 2;"><input type="text" id="edit-name" value="${ind.name || ''}" placeholder="الاسم"></div>
+            
+            <div class="input-group"><input type="text" id="edit-main-unit" value="${ind.main_unit || ''}" placeholder="الوحدة الرئيسية"></div>
+            <div class="input-group"><input type="text" id="edit-sub-unit" value="${ind.sub_unit || ''}" placeholder="الوحدة الفرعية"></div>
         </div>
     `;
     document.getElementById('edit-fields').innerHTML = html;
     document.getElementById('edit-preview-section').style.display = 'block';
 }
 
+// دالة حفظ البيانات الشاملة
 async function saveEditedData() {
     document.getElementById('edit-preview-section').style.display = 'none';
     document.getElementById('loading-spinner').style.display = 'block';
 
+    // تحديث الكائن بالبيانات الجديدة
     currentExtractedData.phoneNumber = document.getElementById('edit-phone').value;
     currentExtractedData.extracted_date = document.getElementById('edit-extracted-date').value;
     currentExtractedData.memo_subject = document.getElementById('edit-subject').value;
+
+    // تحديث الكائن بالبيانات الأصلية
     currentExtractedData.transaction_number = document.getElementById('edit-trans-num').value;
     currentExtractedData.receipt_date = document.getElementById('edit-date').value;
-    currentExtractedData.transaction_type = document.getElementById('edit-type').value;
+    currentExtractedData.beneficiaries_count = document.getElementById('edit-ben-count').value;
     currentExtractedData.branch = document.getElementById('edit-branch').value;
+    currentExtractedData.transaction_type = document.getElementById('edit-type').value;
+    currentExtractedData.source = document.getElementById('edit-source').value;
+    currentExtractedData.receiver = document.getElementById('edit-receiver').value;
+    currentExtractedData.deliverer = document.getElementById('edit-deliverer').value;
 
     if(!currentExtractedData.individuals) currentExtractedData.individuals = [{}];
-    currentExtractedData.individuals[0].name = document.getElementById('edit-name').value;
     currentExtractedData.individuals[0].military_number = document.getElementById('edit-mil-num').value;
+    currentExtractedData.individuals[0].rank = document.getElementById('edit-rank').value;
+    currentExtractedData.individuals[0].name = document.getElementById('edit-name').value;
+    currentExtractedData.individuals[0].main_unit = document.getElementById('edit-main-unit').value;
+    currentExtractedData.individuals[0].sub_unit = document.getElementById('edit-sub-unit').value;
 
     try {
         const response = await fetch(APPS_SCRIPT_URL, {
@@ -156,9 +181,12 @@ async function saveEditedData() {
             alert("خطأ أثناء الحفظ.");
             document.getElementById('edit-preview-section').style.display = 'block';
         }
-    } catch (error) { alert("حدث خطأ."); }
+    } catch (error) { 
+        alert("حدث خطأ."); 
+        document.getElementById('loading-spinner').style.display = 'none';
+        document.getElementById('edit-preview-section').style.display = 'block';
+    }
 }
-
 // ==========================================
 // سجل المعاملات (تحديث الحالة)
 // ==========================================
