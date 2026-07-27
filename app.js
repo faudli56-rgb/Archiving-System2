@@ -299,15 +299,20 @@ async function loadStats() {
     if(allTransactionsData.length === 0) loadTransactionLog();
 }
 
+// الكود المصحح لتصدير الإكسل
 async function exportExcel(type) {
     try {
-        // إذا كانت البيانات فارغة، نقوم بجلبها أولاً
-        if(allTransactionsData.length === 0) {
-            alert("جاري جلب البيانات من السيرفر للتصدير، يرجى الانتظار لحظات...");
+        let exportData = allTransactionsData;
+        
+        // التأكد التام من وجود البيانات
+        if (!exportData || exportData.length === 0) {
+            document.getElementById('report-results').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري جلب البيانات...';
             const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'get_all' }) });
             const result = await response.json();
             if (result.success) {
-                allTransactionsData = result.data;
+                exportData = result.data;
+                allTransactionsData = result.data; // تحديث المتغير العام
+                document.getElementById('report-results').innerHTML = '';
             } else {
                 return alert("فشل جلب البيانات للتصدير.");
             }
@@ -315,39 +320,49 @@ async function exportExcel(type) {
         
         let ws_data = [];
         
-        if(type === 'detailed') {
-            // تقرير تفصيلي
-            ws_data.push(["الاسم", "نوع المعاملة", "رقم المعاملة", "الجهة/الفرع", "التاريخ", "الحالة"]);
-            allTransactionsData.forEach(row => {
-                ws_data.push([row[10]||"", row[4]||"", row[0]||"", row[3]||"", row[14]||"", row[17]||""]);
+        if (type === 'detailed') {
+            ws_data.push(["الاسم", "نوع المعاملة", "رقم المعاملة", "الجهة/الفرع", "التاريخ", "الحالة", "موضوع المذكرة"]);
+            exportData.forEach(row => {
+                // استخدام مؤشرات المصفوفة بناءً على ترتيب Backend
+                ws_data.push([
+                    row[10] || "غير متوفر", // الاسم
+                    row[4] || "غير متوفر",  // نوع المعاملة
+                    row[0] || "-",          // رقم المعاملة
+                    row[3] || "-",          // الجهة
+                    row[14] ? new Date(row[14]).toLocaleDateString('ar-EG') : "-", // التاريخ
+                    row[17] || "مستمرة",    // الحالة
+                    row[19] || "-"          // الموضوع
+                ]);
             });
         } 
-        else if(type === 'stats') {
-            // تقرير إحصائي
+        else if (type === 'stats') {
             ws_data.push(["نوع المعاملة / الموضوع", "الجهة", "العدد المنجز"]);
-            
             let grouped = {};
-            allTransactionsData.forEach(row => {
+            exportData.forEach(row => {
                 let typeKey = row[4] || "غير محدد";
                 let branchKey = row[3] || "غير محدد";
                 let key = typeKey + " | " + branchKey;
                 grouped[key] = (grouped[key] || 0) + 1;
             });
 
-            for(let k in grouped) {
+            for (let k in grouped) {
                 let parts = k.split(" | ");
                 ws_data.push([parts[0], parts[1], grouped[k]]);
             }
         }
 
-        // إنشاء وتنزيل ملف الإكسل
+        // إنشاء الملف وتنزيله
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
+        // تعيين اتجاه الشيت ليكون من اليمين لليسار (RTL)
+        ws['!dir'] = 'rtl'; 
+        
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "التقرير");
         XLSX.writeFile(wb, type === 'detailed' ? "تقرير_تفصيلي.xlsx" : "تقرير_احصائي.xlsx");
         
     } catch (error) {
         alert("حدث خطأ أثناء تصدير الإكسل: " + error.message);
+        console.error(error);
     }
 }
 // ==========================================
