@@ -298,49 +298,82 @@ async function loadStats() {
     // جلب البيانات الأساسية للتمكن من تصديرها لاحقاً
     if(allTransactionsData.length === 0) loadTransactionLog();
 }
-
-// الكود المصحح لتصدير الإكسل
 async function exportExcel(type) {
     try {
+        // 1. التحقق من أن مكتبة الإكسل تعمل وموجودة
+        if (typeof XLSX === 'undefined') {
+            alert("مكتبة الإكسل لم يتم تحميلها بعد. يرجى الانتظار قليلاً أو التأكد من اتصالك بالإنترنت.");
+            return;
+        }
+
         let exportData = allTransactionsData;
         
-        // التأكد التام من وجود البيانات
+        // 2. جلب البيانات من السيرفر إذا كانت المصفوفة فارغة
         if (!exportData || exportData.length === 0) {
-            document.getElementById('report-results').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري جلب البيانات...';
-            const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'get_all' }) });
+            const reportDiv = document.getElementById('report-results');
+            if (reportDiv) reportDiv.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري جلب البيانات للتصدير...';
+            
+            const response = await fetch(APPS_SCRIPT_URL, { 
+                method: 'POST', 
+                body: JSON.stringify({ action: 'get_all' }) 
+            });
             const result = await response.json();
-            if (result.success) {
+            
+            if (result.success && result.data) {
                 exportData = result.data;
-                allTransactionsData = result.data; // تحديث المتغير العام
-                document.getElementById('report-results').innerHTML = '';
+                allTransactionsData = result.data; // حفظها محلياً
+                if (reportDiv) reportDiv.innerHTML = ''; // إخفاء رسالة التحميل
             } else {
-                return alert("فشل جلب البيانات للتصدير.");
+                if (reportDiv) reportDiv.innerHTML = '';
+                alert("فشل جلب البيانات من السيرفر. تأكد من الاتصال وصلاحيات الوصول.");
+                return;
             }
         }
         
+        // التحقق النهائي من وجود بيانات
+        if (!exportData || exportData.length === 0) {
+            alert("لا توجد بيانات حالية لتصديرها.");
+            return;
+        }
+
         let ws_data = [];
         
+        // 3. بناء هيكل البيانات بشكل آمن وتلافي القيم الفارغة (null/undefined)
         if (type === 'detailed') {
             ws_data.push(["الاسم", "نوع المعاملة", "رقم المعاملة", "الجهة/الفرع", "التاريخ", "الحالة", "موضوع المذكرة"]);
+            
             exportData.forEach(row => {
-                // استخدام مؤشرات المصفوفة بناءً على ترتيب Backend
+                if(!row) return; // تخطي أي صف تالف بالكامل
+                
+                // معالجة التاريخ بشكل آمن
+                let dateStr = "-";
+                if (row[14]) {
+                    try {
+                        dateStr = new Date(row[14]).toLocaleDateString('ar-EG');
+                    } catch(e) {
+                        dateStr = String(row[14]); // تحويله لنص كحل بديل إذا فشل التنسيق
+                    }
+                }
+
                 ws_data.push([
-                    row[10] || "غير متوفر", // الاسم
-                    row[4] || "غير متوفر",  // نوع المعاملة
-                    row[0] || "-",          // رقم المعاملة
-                    row[3] || "-",          // الجهة
-                    row[14] ? new Date(row[14]).toLocaleDateString('ar-EG') : "-", // التاريخ
-                    row[17] || "مستمرة",    // الحالة
-                    row[19] || "-"          // الموضوع
+                    String(row[10] || "غير متوفر"), // الاسم
+                    String(row[4] || "غير متوفر"),  // نوع المعاملة
+                    String(row[0] || "-"),          // رقم المعاملة
+                    String(row[3] || "-"),          // الجهة
+                    dateStr,                        // التاريخ
+                    String(row[17] || "مستمرة"),    // الحالة
+                    String(row[19] || "-")          // الموضوع
                 ]);
             });
         } 
         else if (type === 'stats') {
             ws_data.push(["نوع المعاملة / الموضوع", "الجهة", "العدد المنجز"]);
             let grouped = {};
+            
             exportData.forEach(row => {
-                let typeKey = row[4] || "غير محدد";
-                let branchKey = row[3] || "غير محدد";
+                if(!row) return;
+                let typeKey = String(row[4] || "غير محدد");
+                let branchKey = String(row[3] || "غير محدد");
                 let key = typeKey + " | " + branchKey;
                 grouped[key] = (grouped[key] || 0) + 1;
             });
@@ -351,18 +384,19 @@ async function exportExcel(type) {
             }
         }
 
-        // إنشاء الملف وتنزيله
+        // 4. إنشاء الملف وتنزيله
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
-        // تعيين اتجاه الشيت ليكون من اليمين لليسار (RTL)
-        ws['!dir'] = 'rtl'; 
+        ws['!dir'] = 'rtl'; // التوجيه من اليمين لليسار ليناسب اللغة العربية
         
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "التقرير");
-        XLSX.writeFile(wb, type === 'detailed' ? "تقرير_تفصيلي.xlsx" : "تقرير_احصائي.xlsx");
+        
+        const fileName = type === 'detailed' ? "تقرير_تفصيلي.xlsx" : "تقرير_احصائي.xlsx";
+        XLSX.writeFile(wb, fileName);
         
     } catch (error) {
-        alert("حدث خطأ أثناء تصدير الإكسل: " + error.message);
-        console.error(error);
+        console.error("تفاصيل الخطأ:", error); // لطباعة الخطأ بدقة في لوحة المطورين
+        alert("حدث خطأ أثناء التصدير: " + error.message);
     }
 }
 // ==========================================
