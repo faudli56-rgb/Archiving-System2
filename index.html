@@ -91,6 +91,10 @@
         <div id="log-tab" class="tab-content">
             <div class="card" style="max-width: 95%;">
                 <h3><i class="fa-solid fa-list-check"></i> سجل المعاملات الحي</h3>
+               <div class="search-bar" style="margin-bottom: 15px;">
+                    <input type="text" id="log-search-input" onkeyup="filterLogTable()" placeholder="ابحث في السجل بالاسم، اللقب، أو رقم المعاملة...">
+                </div>
+
                 <div id="log-results" class="table-responsive"></div>
             </div>
         </div>
