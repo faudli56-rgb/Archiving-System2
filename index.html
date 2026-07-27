@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام ارشيف محلي </title>
+    <title>نظام الأرشفة المحلية السري</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- مكتبة تصدير الإكسل -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,8 +16,8 @@
         <div class="login-box">
             <div class="logo-area">
                 <i class="fa-solid fa-shield-halved military-icon"></i>
-                <h2>نظام الأرشفة (المحلية)</h2>
-                <p>بوابة الدخول الآمنة</p>
+                <h2>نظام الأرشفة الآمن</h2>
+                <p>بوابة الدخول</p>
             </div>
             <div class="input-group">
                 <i class="fa-solid fa-user"></i>
@@ -32,21 +34,23 @@
 
     <!-- شاشة النظام الرئيسية -->
     <div id="app-section" class="screen">
-        <!-- شريط التنقل -->
+        <!-- شريط التنقل المتوافق مع الجوال -->
         <nav class="navbar">
             <div class="nav-title">
-                <i class="fa-solid fa-shield"></i>  نظام الارشفة المحلية
+                <i class="fa-solid fa-shield"></i> الأرشيف العسكري
             </div>
-            <div class="nav-links">
-                <button onclick="showTab('scan-tab')" class="nav-btn active"><i class="fa-solid fa-camera"></i> مسح معاملة</button>
+            <div class="menu-toggle" onclick="toggleMenu()"><i class="fa-solid fa-bars"></i></div>
+            <div class="nav-links" id="nav-links">
+                <button onclick="showTab('scan-tab')" class="nav-btn active"><i class="fa-solid fa-camera"></i> إضافة معاملة</button>
+                <button onclick="showTab('log-tab')" class="nav-btn"><i class="fa-solid fa-list-check"></i> سجل المعاملات</button>
                 <button onclick="showTab('search-tab')" class="nav-btn"><i class="fa-solid fa-magnifying-glass"></i> البحث</button>
-                <button onclick="showTab('stats-tab')" class="nav-btn"><i class="fa-solid fa-chart-pie"></i> الإحصائيات</button>
+                <button onclick="showTab('stats-tab')" class="nav-btn"><i class="fa-solid fa-chart-pie"></i> التقارير</button>
                 <button onclick="showTab('memo-tab')" class="nav-btn"><i class="fa-solid fa-file-pen"></i> المذكرات</button>
                 <button onclick="logout()" class="nav-btn logout-btn"><i class="fa-solid fa-power-off"></i> خروج</button>
             </div>
         </nav>
 
-        <!-- قسم مسح المستندات -->
+        <!-- 1. قسم مسح المستندات -->
         <div id="scan-tab" class="tab-content active-tab">
             <div class="card">
                 <h3><i class="fa-solid fa-file-signature"></i> إدخال معاملة جديدة</h3>
@@ -61,33 +65,40 @@
                 <img id="image-preview" style="display: none; max-width: 100%; border-radius: 8px; margin-top: 15px;">
                 
                 <button id="process-btn" onclick="processDocument()" class="primary-btn" style="display: none; margin-top: 15px; width: 100%;">
-                    <i class="fa-solid fa-microchip"></i> تحليل البيانات
+                    <i class="fa-solid fa-microchip"></i> استخراج البيانات
                 </button>
 
                 <div id="loading-spinner" class="loading" style="display: none;">
-                    <i class="fa-solid fa-circle-notch fa-spin"></i> جاري التحليل...
+                    <i class="fa-solid fa-circle-notch fa-spin"></i> جاري التحليل الآمن...
                 </div>
 
                 <!-- قسم معاينة وتعديل البيانات قبل الحفظ -->
                 <div id="edit-preview-section" style="display: none; margin-top: 20px;">
-                    <h4 style="color: var(--accent-color); margin-bottom: 15px;">معاينة وتعديل البيانات المستخرجة:</h4>
+                    <h4 style="color: var(--accent-color); margin-bottom: 15px;">تأكيد وإضافة البيانات:</h4>
                     <div id="edit-fields"></div>
-                    <button onclick="saveEditedData()" class="primary-btn" style="margin-top: 15px;"><i class="fa-solid fa-floppy-disk"></i> اعتماد وحفظ البيانات</button>
+                    <button onclick="saveEditedData()" class="primary-btn" style="margin-top: 15px; background-color: #218c74;"><i class="fa-solid fa-floppy-disk"></i> حفظ المعاملة في السجل</button>
                 </div>
 
                 <div id="result-box" class="result-box" style="display: none;">
-                    <h4 class="success-text"><i class="fa-solid fa-circle-check"></i> تم الحفظ بنجاح!</h4>
-                    <button id="whatsapp-btn" onclick="shareViaWhatsApp()" class="whatsapp-btn"><i class="fa-brands fa-whatsapp"></i> مشاركة عبر واتساب</button>
+                    <h4 class="success-text"><i class="fa-solid fa-circle-check"></i> تم حفظ المعاملة بسرية.</h4>
                 </div>
             </div>
         </div>
 
-        <!-- قسم البحث -->
+        <!-- 2. قسم سجل المعاملات (جديد) -->
+        <div id="log-tab" class="tab-content">
+            <div class="card" style="max-width: 95%;">
+                <h3><i class="fa-solid fa-list-check"></i> سجل المعاملات الحي</h3>
+                <div id="log-results" class="table-responsive"></div>
+            </div>
+        </div>
+
+        <!-- 3. قسم البحث -->
         <div id="search-tab" class="tab-content">
             <div class="card">
                 <h3><i class="fa-solid fa-file-shield"></i> البحث والأرشيف</h3>
                 <div class="search-bar">
-                    <input type="text" id="search-query" placeholder="ابحث بالاسم أو الرقم العسكري...">
+                    <input type="text" id="search-query" placeholder="ابحث بالاسم، الرقم العسكري، أو موضوع المذكرة...">
                     <button onclick="searchRecords()" class="primary-btn"><i class="fa-solid fa-magnifying-glass"></i> بحث</button>
                 </div>
                 <div id="search-loading" class="loading" style="display: none;">
@@ -97,10 +108,10 @@
             </div>
         </div>
 
-        <!-- قسم الإحصائيات والتقارير -->
+        <!-- 4. قسم الإحصائيات والتقارير (محدث بـ Excel) -->
         <div id="stats-tab" class="tab-content">
             <div class="card" style="max-width: 900px;">
-                <h3><i class="fa-solid fa-chart-column"></i> الإحصائيات والتقارير</h3>
+                <h3><i class="fa-solid fa-chart-column"></i> لوحة التقارير</h3>
                 
                 <div class="stats-grid" style="margin-bottom: 20px;">
                     <div class="stat-box"><h4>اليوم</h4><span id="stat-today">0</span></div>
@@ -108,57 +119,42 @@
                     <div class="stat-box"><h4>الإجمالي</h4><span id="stat-total">0</span></div>
                 </div>
 
-                <h4 style="margin: 20px 0 10px; color: var(--primary-color);">استخراج التقارير:</h4>
-                <div class="search-bar" style="margin-bottom: 20px;">
-                    <button onclick="getReport('monthly')" class="secondary-btn">تقرير شهري</button>
-                    <button onclick="getReport('quarterly')" class="secondary-btn">تقرير ربعي</button>
-                    <button onclick="getReport('yearly')" class="secondary-btn">تقرير سنوي</button>
+                <h4 style="margin: 20px 0 10px; color: var(--primary-color);">تصدير التقارير إلى Excel:</h4>
+                <div class="search-bar" style="margin-bottom: 20px; flex-wrap: wrap;">
+                    <button onclick="exportExcel('detailed')" class="secondary-btn" style="background-color: #218c74; color: white;"><i class="fa-solid fa-file-excel"></i> تقرير تفصيلي (إكسل)</button>
+                    <button onclick="exportExcel('stats')" class="secondary-btn" style="background-color: #2980b9; color: white;"><i class="fa-solid fa-chart-pie"></i> تقرير إحصائي (إكسل)</button>
                 </div>
-                <div id="report-results" style="overflow-x: auto;"></div>
+                <div id="report-results" class="table-responsive"></div>
             </div>
         </div>
 
-        <!-- قسم المذكرات الصادرة -->
+        <!-- 5. قسم المذكرات الصادرة -->
         <div id="memo-tab" class="tab-content">
             <div class="card" style="max-width: 900px;">
                 <h3><i class="fa-solid fa-file-pen"></i> إصدار المذكرات </h3>
-                
                 <div class="input-group" style="margin-top: 15px;">
                     <input type="text" id="memo-to" placeholder="الجهة المرسل إليها (مثال: قيادة المنطقة العسكرية...)">
                 </div>
                 <div class="input-group">
                     <input type="text" id="memo-subject" placeholder="الموضوع">
                 </div>
-                
                 <textarea id="memo-body" rows="6" placeholder="اكتب نص المذكرة هنا..." style="width: 100%; padding: 15px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; font-family: inherit; margin-bottom: 15px;"></textarea>
-
                 <button onclick="refineMemo()" class="secondary-btn" style="background-color: var(--accent-color); color: white; margin-bottom: 15px;">
-                    <i class="fa-solid fa-wand-magic-sparkles"></i> تحسين الصياغة (ذكاء اصطناعي)
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> صياغة عسكرية (ذكاء اصطناعي)
                 </button>
-
                 <div id="memo-loading" class="loading" style="display: none;">
                     <i class="fa-solid fa-circle-notch fa-spin"></i> جاري معالجة المذكرة...
                 </div>
-
                 <div id="ai-feedback" style="display: none; background: #eef2ef; padding: 15px; border-radius: 6px; margin-bottom: 15px; border-right: 4px solid var(--primary-color);">
-                    <h5 style="color: var(--primary-color);">تفاصيل التعديلات:</h5>
+                    <h5 style="color: var(--primary-color);">التعديلات:</h5>
                     <p id="ai-details" style="font-size: 14px; white-space: pre-wrap;"></p>
                 </div>
-
-                <div class="search-bar">
-                    <button onclick="exportMemo()" class="primary-btn"><i class="fa-solid fa-cloud-arrow-down"></i> إنشاء وتصدير المذكرة</button>
-                </div>
-                
+                <button onclick="exportMemo()" class="primary-btn"><i class="fa-solid fa-cloud-arrow-down"></i> إنشاء وحفظ المذكرة</button>
                 <div id="memo-links" style="display: none; margin-top: 20px; gap: 10px; display: flex;"></div>
             </div>
         </div>
 
     </div>
-
-    <footer>
-        <p>تم تطوير هذا النظام بواسطة فؤاد العميسي 777644293</p>
-    </footer>
-
     <script src="app.js"></script>
 </body>
 </html>
