@@ -185,7 +185,7 @@ async function saveEditedData() {
     }
 }
 
-// سجل المعاملات (مطابق تماماً لترتيب وأعمدة قوقل شيت)
+// بناء جدول السجل مع وضع النواقص والملاحظات في الأخير وإضافة زر التعديل
 async function loadTransactionLog() {
     document.getElementById('log-results').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري جلب السجل...';
     try {
@@ -195,58 +195,41 @@ async function loadTransactionLog() {
         if (result.success) {
             allTransactionsData = result.data; 
             
-            let table = `<table class="report-table"><tr>`;
+            let table = `<table class="report-table">
+                <tr>
+                    <th>الاسم</th>
+                    <th>رقم المعاملة</th>
+                    <th>الجهة</th>
+                    <th>الحالة</th>
+                    <th>المستند</th>
+                    <th style="color: #c5a059;">الملاحظات (عند المسح)</th>
+                    <th style="color: #b33939;">النواقص (من البحث)</th>
+                    <th>إجراء</th>
+                </tr>`;
             
-            // 1. جلب العناوين وتحديد أماكن الأعمدة الحساسة تلقائياً
-            let statusColIndex = -1;
-            let imageColIndex = -1;
-
-            if (result.headers) {
-                result.headers.forEach((header, i) => {
-                    table += `<th>${header || 'بدون عنوان'}</th>`;
-                    if (header.includes("حالة المعاملة")) statusColIndex = i;
-                    if (header.includes("رابط الصورة")) imageColIndex = i;
-                });
-            }
-            // إضافة عمود الإجراء في نهاية الجدول
-            table += `<th>إجراء</th></tr>`; 
-            
-            // 2. بناء صفوف البيانات
             result.data.forEach((row, index) => {
                 const rowIndex = index + 2; 
+                const status = row[17] || "مستمرة"; 
                 
-                // تحديد عمود الحالة (إذا لم يجده بالاسم، يفترض أنه العمود U أي رقم 20 برمجياً)
-                const actualStatusIndex = statusColIndex !== -1 ? statusColIndex : 20; 
-                const status = row[actualStatusIndex] || "مستمرة"; 
+                const statusBtn = status.includes("مستمرة") 
+                    ? `<button onclick="markCompleted(${rowIndex})" class="primary-btn" style="padding: 5px; background: #27ae60; font-size:12px; margin-bottom: 5px;">إتمام</button>` 
+                    : `<span style="color:#27ae60; font-size:12px; display:block; margin-bottom:5px;"><i class="fa-solid fa-check-double"></i> مكتملة</span>`;
                 
-                const btnHtml = status.includes("مستمرة") 
-                    ? `<button onclick="markCompleted(${rowIndex})" class="primary-btn" style="padding: 5px; background: #27ae60; font-size:12px;">إتمام المعاملة</button>` 
-                    : `<span style="color:#27ae60; font-size:12px;"><i class="fa-solid fa-check-double"></i> مكتملة</span>`;
+                // زر التعديل الجديد
+                const editBtn = `<button onclick="openEditModal(${rowIndex})" class="secondary-btn" style="padding: 5px; background: #2980b9; color: white; border: none; border-radius: 4px; font-size:12px; width: 100%;">تعديل</button>`;
                 
-                table += `<tr>`;
-                
-                row.forEach((cell, cellIndex) => {
-                    // تنظيف التواريخ الطويلة (مثل 2026-07-12T21:00:00.000Z)
-                    let cellValue = cell;
-                    if (typeof cell === 'string' && cell.includes('T') && cell.includes('.000Z')) {
-                        cellValue = cell.split('T')[0];
-                    }
+                let docLink = row[13] ? `<a href="${row[13]}" target="_blank" style="color:var(--accent-color); font-weight:bold;">عرض</a>` : '-';
 
-                    // تنسيق رابط الصورة ليظهر كزر "عرض"
-                    if (cellIndex === imageColIndex && cellValue) {
-                        table += `<td><a href="${cellValue}" target="_blank" style="color:var(--accent-color); text-decoration:none; font-weight:bold;"><i class="fa-solid fa-link"></i> عرض</a></td>`;
-                    } 
-                    // إعطاء ID خاص لخلية الحالة لتتحدث عند الضغط
-                    else if (cellIndex === actualStatusIndex) {
-                        table += `<td id="status-${rowIndex}" style="font-weight:bold;">${cellValue || "مستمرة"}</td>`;
-                    } 
-                    // باقي البيانات
-                    else {
-                        table += `<td>${cellValue || '-'}</td>`;
-                    }
-                });
-                
-                table += `<td id="action-${rowIndex}">${btnHtml}</td></tr>`;
+                table += `<tr>
+                    <td><strong>${row[10] || '-'}</strong></td> <!-- الاسم -->
+                    <td>${row[0] || '-'}</td> <!-- رقم المعاملة -->
+                    <td>${row[3] || '-'}</td> <!-- الجهة -->
+                    <td id="status-${rowIndex}" style="font-weight:bold;">${status}</td> <!-- الحالة -->
+                    <td>${docLink}</td> <!-- المستند -->
+                    <td style="background-color: #fff9e6;">${row[18] || '-'}</td> <!-- الملاحظات -->
+                    <td style="background-color: #ffeaea; color: #b33939;">${row[20] || '-'}</td> <!-- النواقص -->
+                    <td id="action-${rowIndex}">${statusBtn} ${editBtn}</td> <!-- الإجراءات -->
+                </tr>`;
             });
             
             table += `</table>`;
@@ -256,24 +239,8 @@ async function loadTransactionLog() {
         document.getElementById('log-results').innerHTML = 'خطأ في جلب السجل.'; 
     }
 }
-async function markCompleted(rowIndex) {
-    document.getElementById(`action-${rowIndex}`).innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-    try {
-        const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'update_status', rowIndex: rowIndex }) });
-        const result = await response.json();
-        if(result.success) {
-            document.getElementById(`status-${rowIndex}`).innerText = result.newStatus;
-            document.getElementById(`action-${rowIndex}`).innerHTML = `<span style="color:#27ae60; font-size:12px;"><i class="fa-solid fa-check-double"></i> مكتملة</span>`;
-            
-            // تحديث البيانات في الذاكرة المحلية حتى يظهر في التقرير كـ "مكتملة" بدون إعادة تحميل
-            const targetRow = allTransactionsData.find(r => r.originalRowIndex === rowIndex);
-            if(targetRow) targetRow[17] = result.newStatus;
-        }
-    } catch (e) { alert("فشل تحديث الحالة."); }
-}
-// ==========================================
-// البحث وإضافة الملاحظات
-// ==========================================
+
+// تعديل البحث ليعرض النواقص
 async function searchRecords() {
     const query = document.getElementById('search-query').value;
     if (!query) return;
@@ -299,11 +266,11 @@ async function searchRecords() {
                     <p><strong>رقم الهاتف:</strong> ${record['الهاتف'] || 'غير مسجل'}</p>
                     
                     <div style="margin-top: 10px;">
-                        <input type="text" id="note-${record.rowIndex}" placeholder="اكتب نواقص أو ملاحظات هنا..." class="input-group" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        <input type="text" id="note-${record.rowIndex}" placeholder="اكتب النواقص المطلوبة هنا..." class="input-group" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; border-right: 3px solid #b33939;">
                     </div>
 
                     <div style="display:flex; gap:10px; margin-top:10px;">
-                        <button onclick="shareSearchViaWhatsApp('${encodedRecord}', ${record.rowIndex})" class="whatsapp-btn" style="margin-top:0; padding:8px;"><i class="fa-brands fa-whatsapp"></i> مشاركة</button>
+                        <button onclick="shareSearchViaWhatsApp('${encodedRecord}', ${record.rowIndex})" class="whatsapp-btn" style="margin-top:0; padding:8px;"><i class="fa-brands fa-whatsapp"></i> إرسال النواقص</button>
                         <a href="${record['رابط الصورة']}" target="_blank" class="secondary-btn" style="text-align:center; text-decoration:none; padding:8px;">عرض المستند</a>
                     </div>
                 </div>`;
@@ -313,23 +280,22 @@ async function searchRecords() {
     } catch (error) { document.getElementById('search-loading').style.display = 'none'; }
 }
 
+// دالة المشاركة للواتساب لتعتمد تسمية "النواقص"
 async function shareSearchViaWhatsApp(encodedData, rowIndex) {
     const data = JSON.parse(decodeURIComponent(encodedData));
-    const note = document.getElementById(`note-${rowIndex}`).value;
+    const missing = document.getElementById(`note-${rowIndex}`).value;
     
-    // حفظ الملاحظة في الخلفية بصمت
-    if(note) fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'update_notes', rowIndex: rowIndex, notes: note }) });
+    if(missing) fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'update_notes', rowIndex: rowIndex, notes: missing }) });
 
     let text = `*بيانات المعاملة*\n===================\n`;
     text += `*الاسم:* ${data['الاسم'] || 'غير متوفر'}\n`;
     text += `*رقم المعاملة:* ${data['رقم المعاملة'] || 'غير متوفر'}\n`;
     text += `*النوع/الموضوع:* ${data['نوع المعاملة'] || 'غير متوفر'}\n`;
     if(data['الهاتف']) text += `*هاتف:* ${data['الهاتف']}\n`;
-    if(note) text += `\n*ملاحظات هامة (نواقص):*\n${note}\n`;
+    if(missing) text += `\n*النواقص المطلوبة:*\n${missing}\n`;
 
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
 }
-
 // ==========================================
 // الإحصائيات وتصدير Excel (تفصيلي + إحصائي)
 // ==========================================
@@ -527,5 +493,76 @@ function filterLogTable() {
         
         // إظهار أو إخفاء الصف بناءً على نتيجة البحث
         trs[i].style.display = rowContainsSearchTerm ? "" : "none";
+    }
+}
+// ==========================================
+// وظائف نافذة التعديل المنبثقة (دوال جديدة)
+// ==========================================
+function openEditModal(rowIndex) {
+    const row = allTransactionsData[rowIndex - 2];
+    if(!row) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'edit-modal-overlay';
+    overlay.style = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; justify-content:center; align-items:center; direction:rtl;';
+    
+    const modal = document.createElement('div');
+    modal.style = 'background:#fff; padding:25px; border-radius:10px; width:90%; max-width:450px; box-shadow:0 10px 30px rgba(0,0,0,0.2);';
+    
+    modal.innerHTML = `
+        <h3 style="margin-bottom:20px; color:var(--primary-color);"><i class="fa-solid fa-pen-to-square"></i> تعديل بيانات المعاملة</h3>
+        
+        <div style="margin-bottom: 10px;"><label style="font-weight:bold; font-size:14px; color:#555;">الاسم:</label><input type="text" id="edit-m-name" value="${row[10] || ''}" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; margin-top:5px;"></div>
+        <div style="margin-bottom: 10px;"><label style="font-weight:bold; font-size:14px; color:#555;">رقم المعاملة:</label><input type="text" id="edit-m-trans" value="${row[0] || ''}" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; margin-top:5px;"></div>
+        <div style="margin-bottom: 10px;"><label style="font-weight:bold; font-size:14px; color:#555;">الجهة / الفرع:</label><input type="text" id="edit-m-branch" value="${row[3] || ''}" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; margin-top:5px;"></div>
+        <div style="margin-bottom: 10px;"><label style="font-weight:bold; font-size:14px; color:#c5a059;">الملاحظات (عند المسح):</label><input type="text" id="edit-m-notes" value="${row[18] || ''}" style="width:100%; padding:8px; border:1px solid #c5a059; border-radius:4px; margin-top:5px; background:#fff9e6;"></div>
+        <div style="margin-bottom: 15px;"><label style="font-weight:bold; font-size:14px; color:#b33939;">النواقص (من البحث):</label><input type="text" id="edit-m-missing" value="${row[20] || ''}" style="width:100%; padding:8px; border:1px solid #b33939; border-radius:4px; margin-top:5px; background:#ffeaea;"></div>
+        
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button onclick="submitEdit(${rowIndex})" class="primary-btn" id="save-edit-btn" style="flex:1;">حفظ التعديلات</button>
+            <button onclick="closeEditModal()" class="secondary-btn" style="background:#e74c3c; color:white; flex:1; border:none;">إلغاء</button>
+        </div>
+    `;
+    
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+}
+
+function closeEditModal() {
+    const overlay = document.getElementById('edit-modal-overlay');
+    if(overlay) overlay.remove();
+}
+
+async function submitEdit(rowIndex) {
+    const btn = document.getElementById('save-edit-btn');
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الحفظ...';
+    btn.disabled = true;
+    
+    const newData = {
+        name: document.getElementById('edit-m-name').value,
+        transNum: document.getElementById('edit-m-trans').value,
+        branch: document.getElementById('edit-m-branch').value,
+        notes: document.getElementById('edit-m-notes').value,
+        missing: document.getElementById('edit-m-missing').value
+    };
+
+    try {
+        const response = await fetch(APPS_SCRIPT_URL, { 
+            method: 'POST', 
+            body: JSON.stringify({ action: 'edit_record', rowIndex: rowIndex, newData: newData }) 
+        });
+        const result = await response.json();
+        
+        if(result.success) {
+            closeEditModal();
+            loadTransactionLog(); // إعادة تحميل السجل ليظهر التحديث فوراً
+        } else {
+            alert("حدث خطأ أثناء التعديل.");
+            btn.innerText = 'حفظ التعديلات';
+            btn.disabled = false;
+        }
+    } catch (e) {
+        alert("خطأ في الاتصال.");
+        closeEditModal();
     }
 }
