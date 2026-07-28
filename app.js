@@ -185,7 +185,7 @@ async function saveEditedData() {
     }
 }
 
-// بناء جدول السجل مع وضع النواقص والملاحظات في الأخير وإضافة زر التعديل
+// بناء جدول السجل بالترتيب الشامل وفصل الملاحظات عن النواقص
 async function loadTransactionLog() {
     document.getElementById('log-results').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري جلب السجل...';
     try {
@@ -195,15 +195,27 @@ async function loadTransactionLog() {
         if (result.success) {
             allTransactionsData = result.data; 
             
+            // الترتيب المطلوب للأعمدة
             let table = `<table class="report-table">
                 <tr>
-                    <th>الاسم</th>
                     <th>رقم المعاملة</th>
-                    <th>الجهة</th>
+                    <th>الرتبة</th>
+                    <th>الرقم العسكري</th>
+                    <th>الاسم</th>
+                    <th>الوحدة الرئيسية</th>
+                    <th>الوحدة الفرعية</th>
+                    <th>نوع المعاملة</th>
+                    <th>موضوع المذكرة</th>
+                    <th>رقم الهاتف</th>
+                    <th>المصدر</th>
+                    <th>المسلم</th>
+                    <th>المستلم</th>
+                    <th>الفرع</th>
+                    <th>عدد المستفيدين</th>
+                    <th>تاريخ الاستلام</th>
+                    <th style="color: #c5a059;">الملاحظات (العمود S)</th>
+                    <th style="color: #b33939;">النواقص (العمود U)</th>
                     <th>الحالة</th>
-                    <th>المستند</th>
-                    <th style="color: #c5a059;">الملاحظات (عند المسح)</th>
-                    <th style="color: #b33939;">النواقص (من البحث)</th>
                     <th>إجراء</th>
                 </tr>`;
             
@@ -211,24 +223,36 @@ async function loadTransactionLog() {
                 const rowIndex = index + 2; 
                 const status = row[17] || "مستمرة"; 
                 
+                // أزرار الإجراءات
                 const statusBtn = status.includes("مستمرة") 
-                    ? `<button onclick="markCompleted(${rowIndex})" class="primary-btn" style="padding: 5px; background: #27ae60; font-size:12px; margin-bottom: 5px;">إتمام</button>` 
-                    : `<span style="color:#27ae60; font-size:12px; display:block; margin-bottom:5px;"><i class="fa-solid fa-check-double"></i> مكتملة</span>`;
+                    ? `<button onclick="markCompleted(${rowIndex})" class="primary-btn" style="padding: 5px; background: #27ae60; font-size:12px; margin-bottom: 5px; width: 100%;">إتمام</button>` 
+                    : `<span style="color:#27ae60; font-size:12px; display:block; margin-bottom:5px; text-align:center;"><i class="fa-solid fa-check-double"></i> مكتملة</span>`;
                 
-                // زر التعديل الجديد
-                const editBtn = `<button onclick="openEditModal(${rowIndex})" class="secondary-btn" style="padding: 5px; background: #2980b9; color: white; border: none; border-radius: 4px; font-size:12px; width: 100%;">تعديل</button>`;
+                const editBtn = `<button onclick="openEditModal(${rowIndex})" class="secondary-btn" style="padding: 5px; background: #2980b9; color: white; border: none; border-radius: 4px; font-size:12px; width: 100%; margin-bottom: 5px;">تعديل</button>`;
                 
-                let docLink = row[13] ? `<a href="${row[13]}" target="_blank" style="color:var(--accent-color); font-weight:bold;">عرض</a>` : '-';
+                const docLink = row[13] ? `<a href="${row[13]}" target="_blank" class="secondary-btn" style="padding: 5px; background: #8e44ad; color: white; border: none; border-radius: 4px; font-size:12px; width: 100%; text-decoration:none; display:inline-block; text-align:center;">المستند</a>` : '-';
 
+                // تعبئة البيانات بالترتيب الدقيق
                 table += `<tr>
-                    <td><strong>${row[10] || '-'}</strong></td> <!-- الاسم -->
                     <td>${row[0] || '-'}</td> <!-- رقم المعاملة -->
-                    <td>${row[3] || '-'}</td> <!-- الجهة -->
+                    <td>${row[9] || '-'}</td> <!-- الرتبة -->
+                    <td>${row[8] || '-'}</td> <!-- الرقم العسكري -->
+                    <td><strong>${row[10] || '-'}</strong></td> <!-- الاسم -->
+                    <td>${row[11] || '-'}</td> <!-- الوحدة الرئيسية -->
+                    <td>${row[12] || '-'}</td> <!-- الوحدة الفرعية -->
+                    <td>${row[4] || '-'}</td> <!-- نوع المعاملة -->
+                    <td>${row[19] || '-'}</td> <!-- موضوع المذكرة -->
+                    <td>${row[15] || '-'}</td> <!-- رقم الهاتف -->
+                    <td>${row[5] || '-'}</td> <!-- المصدر -->
+                    <td>${row[7] || '-'}</td> <!-- المسلم -->
+                    <td>${row[6] || '-'}</td> <!-- المستلم -->
+                    <td>${row[3] || '-'}</td> <!-- الفرع -->
+                    <td>${row[2] || '-'}</td> <!-- عدد المستفيدين -->
+                    <td>${row[1] || '-'}</td> <!-- تاريخ الاستلام -->
+                    <td style="background-color: #fff9e6;">${row[18] || '-'}</td> <!-- الملاحظات (عمود S) -->
+                    <td style="background-color: #ffeaea; color: #b33939;">${row[20] || '-'}</td> <!-- النواقص (عمود U) -->
                     <td id="status-${rowIndex}" style="font-weight:bold;">${status}</td> <!-- الحالة -->
-                    <td>${docLink}</td> <!-- المستند -->
-                    <td style="background-color: #fff9e6;">${row[18] || '-'}</td> <!-- الملاحظات -->
-                    <td style="background-color: #ffeaea; color: #b33939;">${row[20] || '-'}</td> <!-- النواقص -->
-                    <td id="action-${rowIndex}">${statusBtn} ${editBtn}</td> <!-- الإجراءات -->
+                    <td id="action-${rowIndex}" style="min-width: 80px;">${statusBtn} ${editBtn} ${docLink}</td> <!-- إجراء (إتمام + تعديل + عرض المستند) -->
                 </tr>`;
             });
             
@@ -239,7 +263,6 @@ async function loadTransactionLog() {
         document.getElementById('log-results').innerHTML = 'خطأ في جلب السجل.'; 
     }
 }
-
 // تعديل البحث ليعرض النواقص
 async function searchRecords() {
     const query = document.getElementById('search-query').value;
