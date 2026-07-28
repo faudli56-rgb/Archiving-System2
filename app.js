@@ -299,10 +299,9 @@ async function loadStats() {
     if(allTransactionsData.length === 0) loadTransactionLog();
 }
 // ==========================================
-// تصدير وعرض التقارير (إحصائي + تفصيلي)
+// تصدير وعرض التقارير (إحصائي + تفصيلي) وتحميلها كملف Excel
 // ==========================================
 function exportExcel(type) {
-    // التأكد من أن البيانات تم جلبها من السجل
     if (!allTransactionsData || allTransactionsData.length === 0) {
         document.getElementById('report-results').innerHTML = '<p style="color:var(--accent-color);"><i class="fa-solid fa-spinner fa-spin"></i> جاري جلب البيانات من الأرشيف... يرجى إعادة الضغط بعد ثوانٍ.</p>';
         loadTransactionLog();
@@ -310,17 +309,19 @@ function exportExcel(type) {
     }
 
     let exportData = allTransactionsData;
-    let excelHTML = '<table class="report-table">';
+    let excelHTML = '<table border="1">'; // إضافة حدود للجدول لكي تظهر في الإكسل
+    let fileName = "";
 
     // التقرير التفصيلي
     if (type === 'detailed') {
+        fileName = "تقرير_تفصيلي.xls";
         excelHTML += `
             <tr>
-                <th>الاسم</th>
-                <th>رقم المعاملة</th>
-                <th>نوع المعاملة</th>
-                <th>الجهة</th>
-                <th>الحالة</th>
+                <th style="background-color:#2b3a2f; color:white;">الاسم</th>
+                <th style="background-color:#2b3a2f; color:white;">رقم المعاملة</th>
+                <th style="background-color:#2b3a2f; color:white;">نوع المعاملة</th>
+                <th style="background-color:#2b3a2f; color:white;">الجهة</th>
+                <th style="background-color:#2b3a2f; color:white;">الحالة</th>
             </tr>`;
         exportData.forEach(row => {
             excelHTML += `
@@ -333,15 +334,16 @@ function exportExcel(type) {
                 </tr>`;
         });
     } 
-    // التقرير الإحصائي (الكود الخاص بك بعد إصلاحه)
+    // التقرير الإحصائي
     else if (type === 'stats') {
+        fileName = "تقرير_إحصائي.xls";
         excelHTML += `
             <tr>
-                <th>نوع المعاملة / الموضوع</th>
-                <th>الجهة</th>
-                <th>المعاملات المكتملة</th>
-                <th>المعاملات المستمرة</th>
-                <th>الإجمالي</th>
+                <th style="background-color:#2b3a2f; color:white;">نوع المعاملة / الموضوع</th>
+                <th style="background-color:#2b3a2f; color:white;">الجهة</th>
+                <th style="background-color:#2b3a2f; color:white;">المعاملات المكتملة</th>
+                <th style="background-color:#2b3a2f; color:white;">المعاملات المستمرة</th>
+                <th style="background-color:#2b3a2f; color:white;">الإجمالي</th>
             </tr>
         `;
         
@@ -354,14 +356,12 @@ function exportExcel(type) {
             
             let key = typeKey + "|||" + branchKey;
             
-            // تهيئة الكائن إذا لم يكن موجوداً
             if (!grouped[key]) {
                 grouped[key] = { completed: 0, ongoing: 0, total: 0 };
             }
             
             grouped[key].total += 1;
             
-            // فحص الحالة (إذا كانت تحتوي على كلمة "مستمرة")
             if (status.includes("مستمرة")) {
                 grouped[key].ongoing += 1;
             } else {
@@ -385,8 +385,33 @@ function exportExcel(type) {
     
     excelHTML += '</table>';
     
-    // عرض التقرير في الشاشة داخل الحاوية المخصصة
-    document.getElementById('report-results').innerHTML = excelHTML;
+    // 1. عرض التقرير في الشاشة للمعاينة
+    document.getElementById('report-results').innerHTML = excelHTML.replace('<table border="1">', '<table class="report-table">');
+
+    // 2. كود تحميل الملف كـ Excel (يدعم اللغة العربية والاتجاه من اليمين لليسار)
+    let excelFile = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+            <meta charset='utf-8'>
+            <style>
+                body, table { direction: rtl; font-family: Arial, sans-serif; text-align: right; }
+            </style>
+        </head>
+        <body>
+            ${excelHTML}
+        </body>
+        </html>
+    `;
+    
+    let blob = new Blob([excelFile], { type: 'application/vnd.ms-excel' });
+    let url = URL.createObjectURL(blob);
+    
+    let downloadLink = document.createElement("a");
+    downloadLink.href = url;
+    downloadLink.download = fileName;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
 }
 // ==========================================
 // المذكرات الصادرة والذكاء الاصطناعي
