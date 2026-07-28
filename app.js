@@ -298,55 +298,96 @@ async function loadStats() {
     // جلب البيانات الأساسية للتمكن من تصديرها لاحقاً
     if(allTransactionsData.length === 0) loadTransactionLog();
 }
-// الإحصائي: العدد المكتمل والمستمر والإجمالي
-        else if (type === 'stats') {
+// ==========================================
+// تصدير وعرض التقارير (إحصائي + تفصيلي)
+// ==========================================
+function exportExcel(type) {
+    // التأكد من أن البيانات تم جلبها من السجل
+    if (!allTransactionsData || allTransactionsData.length === 0) {
+        document.getElementById('report-results').innerHTML = '<p style="color:var(--accent-color);"><i class="fa-solid fa-spinner fa-spin"></i> جاري جلب البيانات من الأرشيف... يرجى إعادة الضغط بعد ثوانٍ.</p>';
+        loadTransactionLog();
+        return;
+    }
+
+    let exportData = allTransactionsData;
+    let excelHTML = '<table class="report-table">';
+
+    // التقرير التفصيلي
+    if (type === 'detailed') {
+        excelHTML += `
+            <tr>
+                <th>الاسم</th>
+                <th>رقم المعاملة</th>
+                <th>نوع المعاملة</th>
+                <th>الجهة</th>
+                <th>الحالة</th>
+            </tr>`;
+        exportData.forEach(row => {
             excelHTML += `
                 <tr>
-                    <th>نوع المعاملة / الموضوع</th>
-                    <th>الجهة</th>
-                    <th>المعاملات المكتملة</th>
-                    <th>المعاملات المستمرة</th>
-                    <th>الإجمالي</th>
+                    <td>${row[10] || '-'}</td>
+                    <td>${row[0] || '-'}</td>
+                    <td>${row[4] || '-'}</td>
+                    <td>${row[3] || '-'}</td>
+                    <td>${row[17] || 'مستمرة'}</td>
+                </tr>`;
+        });
+    } 
+    // التقرير الإحصائي (الكود الخاص بك بعد إصلاحه)
+    else if (type === 'stats') {
+        excelHTML += `
+            <tr>
+                <th>نوع المعاملة / الموضوع</th>
+                <th>الجهة</th>
+                <th>المعاملات المكتملة</th>
+                <th>المعاملات المستمرة</th>
+                <th>الإجمالي</th>
+            </tr>
+        `;
+        
+        let grouped = {};
+        exportData.forEach(row => {
+            if(!row) return;
+            let typeKey = String(row[4] || "غير محدد");
+            let branchKey = String(row[3] || "غير محدد");
+            let status = String(row[17] || "مستمرة"); 
+            
+            let key = typeKey + "|||" + branchKey;
+            
+            // تهيئة الكائن إذا لم يكن موجوداً
+            if (!grouped[key]) {
+                grouped[key] = { completed: 0, ongoing: 0, total: 0 };
+            }
+            
+            grouped[key].total += 1;
+            
+            // فحص الحالة (إذا كانت تحتوي على كلمة "مستمرة")
+            if (status.includes("مستمرة")) {
+                grouped[key].ongoing += 1;
+            } else {
+                grouped[key].completed += 1;
+            }
+        });
+
+        for (let k in grouped) {
+            let parts = k.split("|||");
+            excelHTML += `
+                <tr>
+                    <td>${parts[0]}</td>
+                    <td>${parts[1]}</td>
+                    <td style="color: green; font-weight: bold;">${grouped[k].completed}</td>
+                    <td style="color: red; font-weight: bold;">${grouped[k].ongoing}</td>
+                    <td style="background-color: #f0f0f0;"><strong>${grouped[k].total}</strong></td>
                 </tr>
             `;
-            
-            let grouped = {};
-            exportData.forEach(row => {
-                if(!row) return;
-                let typeKey = String(row[4] || "غير محدد");
-                let branchKey = String(row[3] || "غير محدد");
-                let status = String(row[17] || "مستمرة"); // العمود 17 يحتوي على الحالة
-                
-                let key = typeKey + "|||" + branchKey;
-                
-                // تهيئة الكائن إذا لم يكن موجوداً
-                if (!grouped[key]) {
-                    grouped[key] = { completed: 0, ongoing: 0, total: 0 };
-                }
-                
-                grouped[key].total += 1;
-                
-                // فحص الحالة (إذا كانت تحتوي على كلمة "مستمرة")
-                if (status.includes("مستمرة")) {
-                    grouped[key].ongoing += 1;
-                } else {
-                    grouped[key].completed += 1;
-                }
-            });
-
-            for (let k in grouped) {
-                let parts = k.split("|||");
-                excelHTML += `
-                    <tr>
-                        <td>${parts[0]}</td>
-                        <td>${parts[1]}</td>
-                        <td style="color: green; font-weight: bold;">${grouped[k].completed}</td>
-                        <td style="color: red; font-weight: bold;">${grouped[k].ongoing}</td>
-                        <td style="background-color: #f0f0f0;"><strong>${grouped[k].total}</strong></td>
-                    </tr>
-                `;
-            }
         }
+    }
+    
+    excelHTML += '</table>';
+    
+    // عرض التقرير في الشاشة داخل الحاوية المخصصة
+    document.getElementById('report-results').innerHTML = excelHTML;
+}
 // ==========================================
 // المذكرات الصادرة والذكاء الاصطناعي
 // ==========================================
