@@ -185,7 +185,7 @@ async function saveEditedData() {
     }
 }
 
-// بناء جدول السجل بالترتيب الشامل وفصل الملاحظات عن النواقص
+// بناء جدول السجل بالترتيب الشامل وتنظيف التواريخ
 async function loadTransactionLog() {
     document.getElementById('log-results').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري جلب السجل...';
     try {
@@ -195,7 +195,6 @@ async function loadTransactionLog() {
         if (result.success) {
             allTransactionsData = result.data; 
             
-            // الترتيب المطلوب للأعمدة
             let table = `<table class="report-table">
                 <tr>
                     <th>رقم المعاملة</th>
@@ -223,36 +222,45 @@ async function loadTransactionLog() {
                 const rowIndex = index + 2; 
                 const status = row[17] || "مستمرة"; 
                 
-                // أزرار الإجراءات
+                // تنظيف التاريخ من الأصفار والحروف (T و Z)
+                let cleanDate = row[1] || '-';
+                if (typeof cleanDate === 'string' && cleanDate.includes('T')) {
+                    cleanDate = cleanDate.split('T')[0];
+                }
+                
+                // أزرار الإجراءات (زر الإتمام داخل حاوية مستقلة)
                 const statusBtn = status.includes("مستمرة") 
-                    ? `<button onclick="markCompleted(${rowIndex})" class="primary-btn" style="padding: 5px; background: #27ae60; font-size:12px; margin-bottom: 5px; width: 100%;">إتمام</button>` 
-                    : `<span style="color:#27ae60; font-size:12px; display:block; margin-bottom:5px; text-align:center;"><i class="fa-solid fa-check-double"></i> مكتملة</span>`;
+                    ? `<button id="complete-btn-${rowIndex}" onclick="markCompleted(${rowIndex})" class="primary-btn" style="padding: 5px; background: #27ae60; font-size:12px; margin-bottom: 5px; width: 100%;">إتمام</button>` 
+                    : `<button class="secondary-btn" style="padding: 5px; background: #7f8c8d; color: white; border: none; font-size:12px; margin-bottom: 5px; width: 100%; cursor: default;" disabled><i class="fa-solid fa-check-double"></i> مكتمل</button>`;
                 
                 const editBtn = `<button onclick="openEditModal(${rowIndex})" class="secondary-btn" style="padding: 5px; background: #2980b9; color: white; border: none; border-radius: 4px; font-size:12px; width: 100%; margin-bottom: 5px;">تعديل</button>`;
                 
                 const docLink = row[13] ? `<a href="${row[13]}" target="_blank" class="secondary-btn" style="padding: 5px; background: #8e44ad; color: white; border: none; border-radius: 4px; font-size:12px; width: 100%; text-decoration:none; display:inline-block; text-align:center;">المستند</a>` : '-';
 
-                // تعبئة البيانات بالترتيب الدقيق
                 table += `<tr>
-                    <td>${row[0] || '-'}</td> <!-- رقم المعاملة -->
-                    <td>${row[9] || '-'}</td> <!-- الرتبة -->
-                    <td>${row[8] || '-'}</td> <!-- الرقم العسكري -->
-                    <td><strong>${row[10] || '-'}</strong></td> <!-- الاسم -->
-                    <td>${row[11] || '-'}</td> <!-- الوحدة الرئيسية -->
-                    <td>${row[12] || '-'}</td> <!-- الوحدة الفرعية -->
-                    <td>${row[4] || '-'}</td> <!-- نوع المعاملة -->
-                    <td>${row[19] || '-'}</td> <!-- موضوع المذكرة -->
-                    <td>${row[15] || '-'}</td> <!-- رقم الهاتف -->
-                    <td>${row[5] || '-'}</td> <!-- المصدر -->
-                    <td>${row[7] || '-'}</td> <!-- المسلم -->
-                    <td>${row[6] || '-'}</td> <!-- المستلم -->
-                    <td>${row[3] || '-'}</td> <!-- الفرع -->
-                    <td>${row[2] || '-'}</td> <!-- عدد المستفيدين -->
-                    <td>${row[1] || '-'}</td> <!-- تاريخ الاستلام -->
-                    <td style="background-color: #fff9e6;">${row[18] || '-'}</td> <!-- الملاحظات (عمود S) -->
-                    <td style="background-color: #ffeaea; color: #b33939;">${row[20] || '-'}</td> <!-- النواقص (عمود U) -->
-                    <td id="status-${rowIndex}" style="font-weight:bold;">${status}</td> <!-- الحالة -->
-                    <td id="action-${rowIndex}" style="min-width: 80px;">${statusBtn} ${editBtn} ${docLink}</td> <!-- إجراء (إتمام + تعديل + عرض المستند) -->
+                    <td>${row[0] || '-'}</td>
+                    <td>${row[9] || '-'}</td>
+                    <td>${row[8] || '-'}</td>
+                    <td><strong>${row[10] || '-'}</strong></td>
+                    <td>${row[11] || '-'}</td>
+                    <td>${row[12] || '-'}</td>
+                    <td>${row[4] || '-'}</td>
+                    <td>${row[19] || '-'}</td>
+                    <td>${row[15] || '-'}</td>
+                    <td>${row[5] || '-'}</td>
+                    <td>${row[7] || '-'}</td>
+                    <td>${row[6] || '-'}</td>
+                    <td>${row[3] || '-'}</td>
+                    <td>${row[2] || '-'}</td>
+                    <td>${cleanDate}</td> <!-- التاريخ الصافي -->
+                    <td style="background-color: #fff9e6;">${row[18] || '-'}</td>
+                    <td style="background-color: #ffeaea; color: #b33939;">${row[20] || '-'}</td>
+                    <td id="status-${rowIndex}" style="font-weight:bold;">${status}</td>
+                    <td style="min-width: 80px;">
+                        <div id="status-container-${rowIndex}">${statusBtn}</div> <!-- حاوية زر الإتمام -->
+                        ${editBtn} 
+                        ${docLink}
+                    </td>
                 </tr>`;
             });
             
@@ -587,5 +595,34 @@ async function submitEdit(rowIndex) {
     } catch (e) {
         alert("خطأ في الاتصال.");
         closeEditModal();
+    }
+}
+// دالة إتمام المعاملة الجديدة
+async function markCompleted(rowIndex) {
+    const btn = document.getElementById(`complete-btn-${rowIndex}`);
+    if(!btn) return;
+    
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; // شكل التحميل
+    
+    try {
+        const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'update_status', rowIndex: rowIndex }) });
+        const result = await response.json();
+        
+        if(result.success) {
+            // 1. تحديث نص مربع الحالة
+            document.getElementById(`status-${rowIndex}`).innerText = result.newStatus;
+            
+            // 2. تحويل الزر للون الرمادي بكلمة "مكتمل" وتعطيل الضغط عليه
+            const container = document.getElementById(`status-container-${rowIndex}`);
+            container.innerHTML = `<button class="secondary-btn" style="padding: 5px; background: #7f8c8d; color: white; border: none; font-size:12px; margin-bottom: 5px; width: 100%; cursor: default;" disabled><i class="fa-solid fa-check-double"></i> مكتمل</button>`;
+            
+            // 3. تحديث المصفوفة محلياً لكي لا يرجع الزر للأخضر إذا تم البحث في السجل
+            if (allTransactionsData[rowIndex - 2]) {
+                allTransactionsData[rowIndex - 2][17] = result.newStatus;
+            }
+        }
+    } catch (e) { 
+        alert("فشل تحديث الحالة."); 
+        btn.innerHTML = 'إتمام'; // استرجاع النص في حال الفشل
     }
 }
