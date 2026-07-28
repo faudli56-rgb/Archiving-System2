@@ -178,7 +178,7 @@ async function saveEditedData() {
     }
 }
 // ==========================================
-// سجل المعاملات (تحديث الحالة)
+// سجل المعاملات (تحديث الحالة - مع تسريع الواجهة والبحث الشامل)
 // ==========================================
 async function loadTransactionLog() {
     document.getElementById('log-results').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري جلب السجل...';
@@ -186,30 +186,73 @@ async function loadTransactionLog() {
         const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'get_all' }) });
         const result = await response.json();
         if (result.success) {
-            allTransactionsData = result.data; // حفظها للإكسل
-            let table = `<table class="report-table">
-                <tr><th>الاسم</th><th>نوع المعاملة</th><th>رقم المعاملة</th><th>الجهة</th><th>حالة المعاملة</th><th>إجراء</th></tr>`;
+            allTransactionsData = result.data; // حفظ كل البيانات للإكسل والبحث السريع
             
-            result.data.forEach((row, index) => {
-                const rowIndex = index + 2; // +2 لأن الصف 1 هو العناوين في الشيت
-                const status = row[17] || "مستمرة"; // العمود 17 هو الحالة
-                const btnHtml = status === "مستمرة" 
-                    ? `<button onclick="markCompleted(${rowIndex})" class="primary-btn" style="padding: 5px; background: #27ae60; font-size:12px;">إتمام المعاملة</button>` 
-                    : `<span style="color:#27ae60; font-size:12px;"><i class="fa-solid fa-check-double"></i> مكتملة</span>`;
-                
-                table += `<tr>
-                    <td>${row[10] || '-'}</td>
-                    <td>${row[4] || '-'}</td>
-                    <td>${row[0] || '-'}</td>
-                    <td>${row[3] || '-'}</td>
-                    <td id="status-${rowIndex}">${status}</td>
-                    <td id="action-${rowIndex}">${btnHtml}</td>
-                </tr>`;
-            });
-            table += `</table>`;
-            document.getElementById('log-results').innerHTML = table;
+            // إضافة رقم الصف الأصلي لكل عنصر لضمان عمل أزرار التحديث بشكل سليم
+            for(let i = 0; i < allTransactionsData.length; i++) {
+                allTransactionsData[i].originalRowIndex = i + 2; 
+            }
+            
+            renderTable(allTransactionsData, false); // عرض أحدث السجلات فقط
         }
     } catch (e) { document.getElementById('log-results').innerHTML = 'خطأ في جلب السجل.'; }
+}
+
+// دالة مساعدة مسؤولة عن رسم الجدول وتخفيف الحمل على المتصفح
+function renderTable(dataArray, isFiltered = false) {
+    let table = `<table class="report-table">
+        <tr><th>الاسم</th><th>نوع المعاملة</th><th>رقم المعاملة</th><th>الجهة</th><th>حالة المعاملة</th><th>إجراء</th></tr>`;
+    
+    let displayData = [];
+    
+    if (!isFiltered && dataArray.length > 100) {
+        // إذا لم يكن هناك بحث، اعرض أحدث 100 معاملة فقط (نعكسها ليظهر الأحدث بالأعلى)
+        displayData = dataArray.slice(-100).reverse(); 
+    } else {
+        // إذا كان هناك بحث، اعرض كل النتائج المطابقة
+        displayData = [...dataArray].reverse(); 
+    }
+
+    displayData.forEach(row => {
+        const rowIndex = row.originalRowIndex;
+        const status = row[17] || "مستمرة";
+        
+        const btnHtml = status === "مستمرة" 
+            ? `<button onclick="markCompleted(${rowIndex})" class="primary-btn" style="padding: 5px; background: #27ae60; font-size:12px;">إتمام المعاملة</button>` 
+            : `<span style="color:#27ae60; font-size:12px;"><i class="fa-solid fa-check-double"></i> مكتملة</span>`;
+        
+        table += `<tr>
+            <td>${row[10] || '-'}</td>
+            <td>${row[4] || '-'}</td>
+            <td>${row[0] || '-'}</td>
+            <td>${row[3] || '-'}</td>
+            <td id="status-${rowIndex}">${status}</td>
+            <td id="action-${rowIndex}">${btnHtml}</td>
+        </tr>`;
+    });
+    table += `</table>`;
+    document.getElementById('log-results').innerHTML = table;
+}
+
+// تحديث دالة البحث السريع (تم تغيير هندستها لتبحث في كامل الذاكرة وليس فقط في الشاشة)
+function filterLogTable() {
+    const input = document.getElementById("log-search-input").value.toLowerCase();
+    
+    // إذا قام المستخدم بمسح البحث، نعود لعرض أحدث 100 معاملة فقط
+    if (input.trim() === "") {
+        renderTable(allTransactionsData, false); 
+        return;
+    }
+
+    // فلترة السجل كاملاً بسرعة خارقة من الذاكرة المحلية
+    const filteredData = allTransactionsData.filter(row => {
+        const nameCell = String(row[10] || '').toLowerCase();
+        const transNumCell = String(row[0] || '').toLowerCase();
+        return nameCell.includes(input) || transNumCell.includes(input);
+    });
+
+    // رسم النتائج التي تطابقت مع البحث فقط
+    renderTable(filteredData, true); 
 }
 
 async function markCompleted(rowIndex) {
@@ -220,10 +263,13 @@ async function markCompleted(rowIndex) {
         if(result.success) {
             document.getElementById(`status-${rowIndex}`).innerText = result.newStatus;
             document.getElementById(`action-${rowIndex}`).innerHTML = `<span style="color:#27ae60; font-size:12px;"><i class="fa-solid fa-check-double"></i> مكتملة</span>`;
+            
+            // تحديث البيانات في الذاكرة المحلية حتى يظهر في التقرير كـ "مكتملة" بدون إعادة تحميل
+            const targetRow = allTransactionsData.find(r => r.originalRowIndex === rowIndex);
+            if(targetRow) targetRow[17] = result.newStatus;
         }
     } catch (e) { alert("فشل تحديث الحالة."); }
 }
-
 // ==========================================
 // البحث وإضافة الملاحظات
 // ==========================================
