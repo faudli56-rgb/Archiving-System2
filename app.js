@@ -185,7 +185,7 @@ async function saveEditedData() {
     }
 }
 
-// سجل المعاملات (محدث لعرض جميع الأعمدة الموجودة في قوقل شيت ديناميكياً)
+// سجل المعاملات (مطابق تماماً لترتيب وأعمدة قوقل شيت)
 async function loadTransactionLog() {
     document.getElementById('log-results').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري جلب السجل...';
     try {
@@ -195,48 +195,57 @@ async function loadTransactionLog() {
         if (result.success) {
             allTransactionsData = result.data; 
             
-            let table = `<table class="report-table">
-                <tr>`;
+            let table = `<table class="report-table"><tr>`;
             
-            // 1. جلب وبناء عناوين الجدول تلقائياً من الصف الأول في الشيت
+            // 1. جلب العناوين وتحديد أماكن الأعمدة الحساسة تلقائياً
+            let statusColIndex = -1;
+            let imageColIndex = -1;
+
             if (result.headers) {
-                result.headers.forEach(header => {
+                result.headers.forEach((header, i) => {
                     table += `<th>${header || 'بدون عنوان'}</th>`;
+                    if (header.includes("حالة المعاملة")) statusColIndex = i;
+                    if (header.includes("رابط الصورة")) imageColIndex = i;
                 });
             }
-            // إضافة عمود الإجراءات في نهاية الجدول
+            // إضافة عمود الإجراء في نهاية الجدول
             table += `<th>إجراء</th></tr>`; 
             
-            // 2. جلب وبناء صفوف البيانات
+            // 2. بناء صفوف البيانات
             result.data.forEach((row, index) => {
-                const rowIndex = index + 2; // +2 لأن الصف 1 في الشيت للعناوين
+                const rowIndex = index + 2; 
                 
-                // حالة المعاملة موجودة في العمود 17 (العمود R) بناءً على صورتك
-                const statusIndex = 17; 
-                const status = row[statusIndex] || "مستمرة"; 
+                // تحديد عمود الحالة (إذا لم يجده بالاسم، يفترض أنه العمود U أي رقم 20 برمجياً)
+                const actualStatusIndex = statusColIndex !== -1 ? statusColIndex : 20; 
+                const status = row[actualStatusIndex] || "مستمرة"; 
+                
                 const btnHtml = status.includes("مستمرة") 
                     ? `<button onclick="markCompleted(${rowIndex})" class="primary-btn" style="padding: 5px; background: #27ae60; font-size:12px;">إتمام المعاملة</button>` 
                     : `<span style="color:#27ae60; font-size:12px;"><i class="fa-solid fa-check-double"></i> مكتملة</span>`;
                 
                 table += `<tr>`;
                 
-                // عرض كل الخلايا للعميل
                 row.forEach((cell, cellIndex) => {
-                    // إذا كان العمود هو رابط الصورة (العمود رقم 13 أو N)، نجعله رابطاً قابل للنقر
-                    if (cellIndex === 13 && cell) {
-                        table += `<td><a href="${cell}" target="_blank" style="color:var(--accent-color); text-decoration:none;"><i class="fa-solid fa-link"></i> عرض</a></td>`;
-                    } 
-                    // تمييز خلية الحالة لكي تتحدث عند الضغط على الزر
-                    else if (cellIndex === statusIndex) {
-                        table += `<td id="status-${rowIndex}">${status}</td>`;
+                    // تنظيف التواريخ الطويلة (مثل 2026-07-12T21:00:00.000Z)
+                    let cellValue = cell;
+                    if (typeof cell === 'string' && cell.includes('T') && cell.includes('.000Z')) {
+                        cellValue = cell.split('T')[0];
                     }
-                    // عرض باقي البيانات بشكل طبيعي
+
+                    // تنسيق رابط الصورة ليظهر كزر "عرض"
+                    if (cellIndex === imageColIndex && cellValue) {
+                        table += `<td><a href="${cellValue}" target="_blank" style="color:var(--accent-color); text-decoration:none; font-weight:bold;"><i class="fa-solid fa-link"></i> عرض</a></td>`;
+                    } 
+                    // إعطاء ID خاص لخلية الحالة لتتحدث عند الضغط
+                    else if (cellIndex === actualStatusIndex) {
+                        table += `<td id="status-${rowIndex}" style="font-weight:bold;">${cellValue || "مستمرة"}</td>`;
+                    } 
+                    // باقي البيانات
                     else {
-                        table += `<td>${cell || '-'}</td>`;
+                        table += `<td>${cellValue || '-'}</td>`;
                     }
                 });
                 
-                // إضافة زر الإجراء في نهاية الصف
                 table += `<td id="action-${rowIndex}">${btnHtml}</td></tr>`;
             });
             
