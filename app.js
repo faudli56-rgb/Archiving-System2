@@ -185,54 +185,68 @@ async function saveEditedData() {
     }
 }
 
-// 3. سجل المعاملات (محدث لعرض جميع البيانات)
+// سجل المعاملات (محدث لعرض جميع الأعمدة الموجودة في قوقل شيت ديناميكياً)
 async function loadTransactionLog() {
     document.getElementById('log-results').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري جلب السجل...';
     try {
         const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'get_all' }) });
         const result = await response.json();
+        
         if (result.success) {
             allTransactionsData = result.data; 
-            let table = `<table class="report-table">
-                <tr>
-                    <th>الاسم</th>
-                    <th>الرقم العسكري</th>
-                    <th>رقم الهاتف</th>
-                    <th>نوع المعاملة</th>
-                    <th>رقم المعاملة</th>
-                    <th>الجهة</th>
-                    <th>تاريخ الاستلام</th>
-                    <th>الملاحظات</th>
-                    <th>حالة المعاملة</th>
-                    <th>إجراء</th>
-                </tr>`;
             
+            let table = `<table class="report-table">
+                <tr>`;
+            
+            // 1. جلب وبناء عناوين الجدول تلقائياً من الصف الأول في الشيت
+            if (result.headers) {
+                result.headers.forEach(header => {
+                    table += `<th>${header || 'بدون عنوان'}</th>`;
+                });
+            }
+            // إضافة عمود الإجراءات في نهاية الجدول
+            table += `<th>إجراء</th></tr>`; 
+            
+            // 2. جلب وبناء صفوف البيانات
             result.data.forEach((row, index) => {
-                const rowIndex = index + 2; 
-                const status = row[17] || "مستمرة"; 
-                const btnHtml = status === "مستمرة" 
+                const rowIndex = index + 2; // +2 لأن الصف 1 في الشيت للعناوين
+                
+                // حالة المعاملة موجودة في العمود 17 (العمود R) بناءً على صورتك
+                const statusIndex = 17; 
+                const status = row[statusIndex] || "مستمرة"; 
+                const btnHtml = status.includes("مستمرة") 
                     ? `<button onclick="markCompleted(${rowIndex})" class="primary-btn" style="padding: 5px; background: #27ae60; font-size:12px;">إتمام المعاملة</button>` 
                     : `<span style="color:#27ae60; font-size:12px;"><i class="fa-solid fa-check-double"></i> مكتملة</span>`;
                 
-                table += `<tr>
-                    <td>${row[10] || '-'}</td>
-                    <td>${row[8] || '-'}</td>
-                    <td>${row[15] || '-'}</td>
-                    <td>${row[4] || '-'}</td>
-                    <td>${row[0] || '-'}</td>
-                    <td>${row[3] || '-'}</td>
-                    <td>${row[1] || '-'}</td>
-                    <td style="color: var(--danger); font-weight: bold;">${row[18] || '-'}</td>
-                    <td id="status-${rowIndex}">${status}</td>
-                    <td id="action-${rowIndex}">${btnHtml}</td>
-                </tr>`;
+                table += `<tr>`;
+                
+                // عرض كل الخلايا للعميل
+                row.forEach((cell, cellIndex) => {
+                    // إذا كان العمود هو رابط الصورة (العمود رقم 13 أو N)، نجعله رابطاً قابل للنقر
+                    if (cellIndex === 13 && cell) {
+                        table += `<td><a href="${cell}" target="_blank" style="color:var(--accent-color); text-decoration:none;"><i class="fa-solid fa-link"></i> عرض</a></td>`;
+                    } 
+                    // تمييز خلية الحالة لكي تتحدث عند الضغط على الزر
+                    else if (cellIndex === statusIndex) {
+                        table += `<td id="status-${rowIndex}">${status}</td>`;
+                    }
+                    // عرض باقي البيانات بشكل طبيعي
+                    else {
+                        table += `<td>${cell || '-'}</td>`;
+                    }
+                });
+                
+                // إضافة زر الإجراء في نهاية الصف
+                table += `<td id="action-${rowIndex}">${btnHtml}</td></tr>`;
             });
+            
             table += `</table>`;
             document.getElementById('log-results').innerHTML = table;
         }
-    } catch (e) { document.getElementById('log-results').innerHTML = 'خطأ في جلب السجل.'; }
+    } catch (e) { 
+        document.getElementById('log-results').innerHTML = 'خطأ في جلب السجل.'; 
+    }
 }
-
 async function markCompleted(rowIndex) {
     document.getElementById(`action-${rowIndex}`).innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
     try {
