@@ -47,6 +47,7 @@
                 <button onclick="showTab('scan-tab')" class="nav-btn active"><i class="fa-solid fa-camera"></i> إضافة معاملة</button>
                 <button onclick="showTab('log-tab')" class="nav-btn"><i class="fa-solid fa-list-check"></i> سجل المعاملات</button>
                 <button onclick="showTab('search-tab')" class="nav-btn"><i class="fa-solid fa-magnifying-glass"></i> البحث</button>
+                <button onclick="showTab('chat-tab')" class="nav-btn"><i class="fa-solid fa-comments"></i> غرفة المراسلة</button>
                 <button onclick="showTab('stats-tab')" class="nav-btn"><i class="fa-solid fa-chart-pie"></i> التقارير</button>
                 <button onclick="showTab('memo-tab')" class="nav-btn"><i class="fa-solid fa-file-pen"></i> المذكرات</button>
                 <button onclick="logout()" class="nav-btn logout-btn"><i class="fa-solid fa-power-off"></i> خروج</button>
@@ -136,7 +137,21 @@
                 <div id="report-results" class="table-responsive"></div>
             </div>
         </div>
+<!-- 6. قسم المراسلة والملاحظات المشتركة -->
+<div id="chat-tab" class="tab-content">
+    <div class="card" style="max-width: 800px; height: 75vh; display: flex; flex-direction: column;">
+        <h3><i class="fa-solid fa-comments"></i> غرفة المراسلة المشتركة</h3>
+        
+        <div id="chat-messages" style="flex: 1; overflow-y: auto; padding: 15px; background: #e5ddd5; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px;">
+            <!-- الرسائل ستظهر هنا بشكل فقاعات -->
+        </div>
 
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="chat-input" placeholder="اكتب رسالتك أو ملاحظتك هنا..." style="flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; background: #fff;">
+            <button onclick="sendChatMessage()" class="primary-btn" style="width: auto; padding: 12px 25px;"><i class="fa-solid fa-paper-plane"></i> إرسال</button>
+        </div>
+    </div>
+</div>
         <!-- 5. قسم المذكرات الصادرة -->
         <div id="memo-tab" class="tab-content">
             <div class="card" style="max-width: 900px;">
