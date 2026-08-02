@@ -4,17 +4,23 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbypNxrpZWpyIpgd
 let currentExtractedData = null; 
 let imageBase64Data = "";
 let allTransactionsData = []; // لحفظ البيانات للإكسل
-// دالة الذكاء لتوحيد مسميات المعاملات (تضاف في أي مكان فارغ)
+// دالة الذكاء لتوحيد مسميات المعاملات (محدثة لتجاهل الهمزات والمسافات)
 function normalizeTransactionType(text) {
-    let t = String(text || "").trim();
-    if (t.includes("احاله") || t.includes("احالة") || t.includes("رعاية")) return "إحالة على الرعاية";
-    if (t.includes("اعادة") || t.includes("إعادة") || t.includes("قوة") || t.includes("قوه")) return "إعادة على القوة";
-    if (t.includes("ترقية") || t.includes("ترقيه") || t.includes("تسوية") || t.includes("تسويه") || t.includes("تسويات")) return "ترقيات وتسويات";
+    let originalText = String(text || "").trim();
+    
+    // توحيد الحروف (تحويل الهمزات إلى ألف عادية، والتاء المربوطة إلى هاء) لغرض الفحص فقط
+    let t = originalText.replace(/أ|إ|آ/g, "ا").replace(/ة/g, "ه");
+
+    if (t.includes("احاله") || t.includes("رعايه")) return "إحالة على الرعاية";
+    if (t.includes("اعاده") || t.includes("قوه")) return "إعادة على القوة";
+    if (t.includes("ترقيه") || t.includes("تسويه") || t.includes("تسويات")) return "ترقيات وتسويات";
     if (t.includes("ازدواج")) return "حالات الازدواج الوظيفي";
-    if (t.includes("نقل") || t.includes("مواصلة") || t.includes("مواصله") || t.includes("بدل فاقد")) return "نقل ومواصلة";
-    if (t.includes("استمارة") || t.includes("استماره") || t.includes("جريح")) return "استمارة جريح";
-    if (t.includes("مذكرة") || t.includes("مذكره")) return "مذكرات عامة";
-    return t; // إعادة النص كما هو إذا لم ينطبق عليه شيء
+    if (t.includes("نقل") || t.includes("مواصله") || t.includes("بدل فاقد")) return "نقل ومواصلة";
+    if (t.includes("استماره") || t.includes("جريح")) return "استمارة جريح";
+    if (t.includes("مذكره")) return "مذكرات عامة";
+
+    // إذا كان نوع المعاملة مختلفاً عما سبق، نعيده كما هو ولكن بدون مسافات زائدة
+    return originalText; 
 }
 // الكود المصحح
 function toggleMenu() {
@@ -509,12 +515,12 @@ function exportExcel(type) {
         exportData.forEach(row => {
             if(!row) return;
             
-            // استخدام الذكاء لتوحيد المسميات (سيجمع المذكرات والإحالات المتشابهة في سطر واحد)
+            // استخدام الذكاء لتوحيد المسميات
             let typeKey = normalizeTransactionType(row[4] || row[19] || "غير محدد"); 
-            let branchKey = String(row[3] || "غير محدد");
             let status = String(row[17] || "مستمرة"); 
             
-            let key = typeKey + "|||" + branchKey;
+            // التجميع يعتمد حصرياً على "نوع المعاملة" ولن ينظر للجهة أبداً
+            let key = typeKey;
             
             if (!grouped[key]) grouped[key] = { completed: 0, ongoing: 0, total: 0 };
             
@@ -524,19 +530,18 @@ function exportExcel(type) {
         });
 
         for (let k in grouped) {
-            let parts = k.split("|||");
             excelHTML += `
                 <tr>
-                    <td>${parts[0]}</td>
-                    <td>${parts[1]}</td>
+                    <td>${k}</td>
+                    <!-- تثبيت اسم الجهة لجميع المعاملات كما طلبت -->
+                    <td>الهيئات والدوائر </td> 
                     <td style="color: green; font-weight: bold;">${grouped[k].completed}</td>
                     <td style="color: red; font-weight: bold;">${grouped[k].ongoing}</td>
                     <td style="background-color: #f0f0f0;"><strong>${grouped[k].total}</strong></td>
                 </tr>
             `;
         }
-    }
-    
+    }    
     excelHTML += '</table>';
     
     document.getElementById('report-results').innerHTML = excelHTML.replace('<table border="1">', '<table class="report-table">');
