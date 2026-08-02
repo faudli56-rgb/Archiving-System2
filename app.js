@@ -459,7 +459,7 @@ function exportExcel(type) {
 
     let exportData = allTransactionsData;
     
-   // فلترة السجلات بناءً على التاريخ المختار قبل تصدير الإكسل
+    // فلترة السجلات بناءً على التاريخ المختار قبل تصدير الإكسل
     if (dateFrom && dateTo) {
         exportData = exportData.filter(row => {
             // استخدام row[14] الذي يمثل تاريخ إضافة المعاملة للنظام
@@ -497,16 +497,40 @@ function exportExcel(type) {
                 <th style="background-color:#2b3a2f; color:white;">الجهة</th>
                 <th style="background-color:#2b3a2f; color:white;">الحالة</th>
             </tr>`;
+            
+        // عدادات لصف الإجمالي الكلي - التقرير التفصيلي
+        let detailedCompleted = 0;
+        let detailedOngoing = 0;
+        let detailedTotal = 0;
+
         exportData.forEach(row => {
+            // فحص الحالة الذكي (لقراءة المكتمل حتى لو كان مكتوباً في النواقص بالغلط)
+            let statusText = String(row[17] || "");
+            let bugText = String(row[20] || "");
+            let isCompleted = (statusText.includes("تمت") || bugText.includes("تمت"));
+            let finalStatus = isCompleted ? "مكتملة" : "مستمرة";
+            
+            // حساب الإحصائيات
+            detailedTotal++;
+            if (isCompleted) detailedCompleted++;
+            else detailedOngoing++;
+
             excelHTML += `
                 <tr>
                     <td>${row[10] || '-'}</td>
                     <td>${row[0] || '-'}</td>
                     <td>${row[4] || '-'}</td>
                     <td>${row[3] || '-'}</td>
-                    <td>${row[17] || 'مستمرة'}</td>
+                    <td>${finalStatus}</td>
                 </tr>`;
         });
+
+        // طباعة صف الإجمالي للتقرير التفصيلي
+        excelHTML += `
+            <tr style="background-color:#2b3a2f; color:white; font-weight:bold;">
+                <td colspan="4" style="text-align:left; padding-left: 15px;">الإجمالي الكلي:</td>
+                <td>المكتملة: ${detailedCompleted} | المستمرة: ${detailedOngoing} | الإجمالي: ${detailedTotal}</td>
+            </tr>`;
     } 
     else if (type === 'stats') {
         fileName = "تقرير_إحصائي_ذكي.xls";
@@ -521,12 +545,22 @@ function exportExcel(type) {
         `;
         
         let grouped = {};
+        
+        // عدادات لصف الإجمالي الكلي - التقرير الإحصائي
+        let grandCompleted = 0;
+        let grandOngoing = 0;
+        let grandTotal = 0;
+
         exportData.forEach(row => {
             if(!row) return;
             
             // استخدام الذكاء لتوحيد المسميات
             let typeKey = normalizeTransactionType(row[4] || row[19] || "غير محدد"); 
-            let status = String(row[17] || "مستمرة"); 
+            
+            // فحص الحالة الذكي (لقراءة المكتمل حتى لو كان مكتوباً في النواقص بالغلط)
+            let statusText = String(row[17] || "");
+            let bugText = String(row[20] || "");
+            let isCompleted = (statusText.includes("تمت") || bugText.includes("تمت"));
             
             // التجميع يعتمد حصرياً على "نوع المعاملة" ولن ينظر للجهة أبداً
             let key = typeKey;
@@ -534,22 +568,37 @@ function exportExcel(type) {
             if (!grouped[key]) grouped[key] = { completed: 0, ongoing: 0, total: 0 };
             
             grouped[key].total += 1;
-            if (status.includes("مستمرة")) grouped[key].ongoing += 1;
-            else grouped[key].completed += 1;
+            if (isCompleted) grouped[key].completed += 1;
+            else grouped[key].ongoing += 1;
         });
 
         for (let k in grouped) {
+            // تجميع الأرقام لصف الإجمالي النهائي
+            grandCompleted += grouped[k].completed;
+            grandOngoing += grouped[k].ongoing;
+            grandTotal += grouped[k].total;
+
             excelHTML += `
                 <tr>
                     <td>${k}</td>
                     <!-- تثبيت اسم الجهة لجميع المعاملات كما طلبت -->
-                    <td>الهيئات والدوائر </td> 
+                    <td>رئاسة الهيئة - دائرة شؤون الضباط - دائرة شؤون الافراد </td> 
                     <td style="color: green; font-weight: bold;">${grouped[k].completed}</td>
                     <td style="color: red; font-weight: bold;">${grouped[k].ongoing}</td>
                     <td style="background-color: #f0f0f0;"><strong>${grouped[k].total}</strong></td>
                 </tr>
             `;
         }
+
+        // طباعة صف الإجمالي الكلي في نهاية التقرير الإحصائي
+        excelHTML += `
+            <tr style="background-color:#2b3a2f; color:white; font-size: 16px;">
+                <td colspan="2" style="text-align: left; font-weight: bold; padding-left: 20px;">الإجمالي الكلي:</td>
+                <td style="font-weight: bold; color: #4cd137;">${grandCompleted}</td>
+                <td style="font-weight: bold; color: #ff7675;">${grandOngoing}</td>
+                <td style="font-weight: bold; background-color: #1f2a22;">${grandTotal}</td>
+            </tr>
+        `;
     }    
     excelHTML += '</table>';
     
