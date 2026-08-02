@@ -4,10 +4,6 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbypNxrpZWpyIpgd
 let currentExtractedData = null; 
 let imageBase64Data = "";
 let allTransactionsData = []; // لحفظ البيانات للإكسل
-// متغيرات التحكم في الصفحات (Pagination)
-let currentPage = 1;
-const RECORDS_PER_PAGE = 20;
-
 // دالة الذكاء لتوحيد مسميات المعاملات (تضاف في أي مكان فارغ)
 function normalizeTransactionType(text) {
     let t = String(text || "").trim();
