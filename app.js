@@ -4,7 +4,22 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbypNxrpZWpyIpgd
 let currentExtractedData = null; 
 let imageBase64Data = "";
 let allTransactionsData = []; // لحفظ البيانات للإكسل
+// متغيرات التحكم في الصفحات (Pagination)
+let currentPage = 1;
+const RECORDS_PER_PAGE = 20;
 
+// دالة الذكاء لتوحيد مسميات المعاملات (تضاف في أي مكان فارغ)
+function normalizeTransactionType(text) {
+    let t = String(text || "").trim();
+    if (t.includes("احاله") || t.includes("احالة") || t.includes("رعاية")) return "إحالة على الرعاية";
+    if (t.includes("اعادة") || t.includes("إعادة") || t.includes("قوة") || t.includes("قوه")) return "إعادة على القوة";
+    if (t.includes("ترقية") || t.includes("ترقيه") || t.includes("تسوية") || t.includes("تسويه") || t.includes("تسويات")) return "ترقيات وتسويات";
+    if (t.includes("ازدواج")) return "حالات الازدواج الوظيفي";
+    if (t.includes("نقل") || t.includes("مواصلة") || t.includes("مواصله") || t.includes("بدل فاقد")) return "نقل ومواصلة";
+    if (t.includes("استمارة") || t.includes("استماره") || t.includes("جريح")) return "استمارة جريح";
+    if (t.includes("مذكرة") || t.includes("مذكره")) return "مذكرات عامة";
+    return t; // إعادة النص كما هو إذا لم ينطبق عليه شيء
+}
 // الكود المصحح
 function toggleMenu() {
     const navLinks = document.getElementById('nav-links');
@@ -186,131 +201,217 @@ async function saveEditedData() {
 }
 
 // بناء جدول السجل بالترتيب الشامل وتنظيف التواريخ
+// متغيرات التحكم في الصفحات (توضع قبل الدالة لكي يتعرف عليها النظام)
+let currentPage = 1;
+const RECORDS_PER_PAGE = 20;
+
+// 1. الدالة الأساسية (نفس اسم دالتك الأصلية للحفاظ على توافق النظام)
 async function loadTransactionLog() {
-    document.getElementById('log-results').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري جلب السجل...';
+    const logContainer = document.getElementById('log-results');
+    
+    // أ- جلب البيانات من الذاكرة المحلية (تضمن فتح السجل بأقل من ثانية)
+    const cachedData = localStorage.getItem('militaryArchiveData');
+    if (cachedData) {
+        allTransactionsData = JSON.parse(cachedData);
+        renderTablePage(currentPage); // رسم الجدول فوراً
+    } else {
+        logContainer.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري جلب السجل...';
+    }
+
+    // ب- المزامنة مع السيرفر في الخلفية لجلب أي معاملات جديدة
     try {
         const response = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'get_all' }) });
         const result = await response.json();
         
         if (result.success) {
-            allTransactionsData = result.data; 
-            
-            let table = `<table class="report-table">
-                <tr>
-                    <th>رقم المعاملة</th>
-                    <th>الرتبة</th>
-                    <th>الرقم العسكري</th>
-                    <th>الاسم</th>
-                    <th>الوحدة الرئيسية</th>
-                    <th>الوحدة الفرعية</th>
-                    <th>نوع المعاملة</th>
-                    <th>موضوع المذكرة</th>
-                    <th>رقم الهاتف</th>
-                    <th>المصدر</th>
-                    <th>المسلم</th>
-                    <th>المستلم</th>
-                    <th>الفرع</th>
-                    <th>عدد المستفيدين</th>
-                    <th>تاريخ الاستلام</th>
-                    <th style="color: #c5a059;">الملاحظات (العمود S)</th>
-                    <th style="color: #b33939;">النواقص (العمود U)</th>
-                    <th>الحالة</th>
-                    <th>إجراء</th>
-                </tr>`;
-            
-            result.data.forEach((row, index) => {
-                const rowIndex = index + 2; 
-                const status = row[17] || "مستمرة"; 
-                
-                // تنظيف التاريخ من الأصفار والحروف (T و Z)
-                let cleanDate = row[1] || '-';
-                if (typeof cleanDate === 'string' && cleanDate.includes('T')) {
-                    cleanDate = cleanDate.split('T')[0];
-                }
-                
-                // أزرار الإجراءات (زر الإتمام داخل حاوية مستقلة)
-                const statusBtn = status.includes("مستمرة") 
-                    ? `<button id="complete-btn-${rowIndex}" onclick="markCompleted(${rowIndex})" class="primary-btn" style="padding: 5px; background: #27ae60; font-size:12px; margin-bottom: 5px; width: 100%;">إتمام</button>` 
-                    : `<button class="secondary-btn" style="padding: 5px; background: #7f8c8d; color: white; border: none; font-size:12px; margin-bottom: 5px; width: 100%; cursor: default;" disabled><i class="fa-solid fa-check-double"></i> مكتمل</button>`;
-                
-                const editBtn = `<button onclick="openEditModal(${rowIndex})" class="secondary-btn" style="padding: 5px; background: #2980b9; color: white; border: none; border-radius: 4px; font-size:12px; width: 100%; margin-bottom: 5px;">تعديل</button>`;
-                
-                const docLink = row[13] ? `<a href="${row[13]}" target="_blank" class="secondary-btn" style="padding: 5px; background: #8e44ad; color: white; border: none; border-radius: 4px; font-size:12px; width: 100%; text-decoration:none; display:inline-block; text-align:center;">المستند</a>` : '-';
-
-                table += `<tr>
-                    <td>${row[0] || '-'}</td>
-                    <td>${row[9] || '-'}</td>
-                    <td>${row[8] || '-'}</td>
-                    <td><strong>${row[10] || '-'}</strong></td>
-                    <td>${row[11] || '-'}</td>
-                    <td>${row[12] || '-'}</td>
-                    <td>${row[4] || '-'}</td>
-                    <td>${row[19] || '-'}</td>
-                    <td>${row[15] || '-'}</td>
-                    <td>${row[5] || '-'}</td>
-                    <td>${row[7] || '-'}</td>
-                    <td>${row[6] || '-'}</td>
-                    <td>${row[3] || '-'}</td>
-                    <td>${row[2] || '-'}</td>
-                    <td>${cleanDate}</td> <!-- التاريخ الصافي -->
-                    <td style="background-color: #fff9e6;">${row[18] || '-'}</td>
-                    <td style="background-color: #ffeaea; color: #b33939;">${row[20] || '-'}</td>
-                    <td id="status-${rowIndex}" style="font-weight:bold;">${status}</td>
-                    <td style="min-width: 80px;">
-                        <div id="status-container-${rowIndex}">${statusBtn}</div> <!-- حاوية زر الإتمام -->
-                        ${editBtn} 
-                        ${docLink}
-                    </td>
-                </tr>`;
-            });
-            
-            table += `</table>`;
-            document.getElementById('log-results').innerHTML = table;
+            // تحديث الواجهة فقط إذا كان هناك بيانات جديدة لم يتم تخزينها بعد
+            if (JSON.stringify(allTransactionsData) !== JSON.stringify(result.data)) {
+                allTransactionsData = result.data; 
+                localStorage.setItem('militaryArchiveData', JSON.stringify(allTransactionsData));
+                renderTablePage(currentPage);
+            }
         }
     } catch (e) { 
-        document.getElementById('log-results').innerHTML = 'خطأ في جلب السجل.'; 
+        if (!cachedData) {
+            logContainer.innerHTML = 'خطأ في جلب السجل.'; 
+        }
+    }
+}
+
+// 2. دالة الرسم المساعدة (تحتوي على نفس الكود الخاص بك حرفياً لرسم الجدول مع إضافة ميزة العكس والتقسيم)
+function renderTablePage(page, customData = null) {
+    // جلب البيانات وعكس ترتيبها (.reverse()) لكي يظهر الأحدث أولاً
+    const dataToRender = [...(customData || allTransactionsData)].reverse();
+    
+    if (!dataToRender || dataToRender.length === 0) {
+        document.getElementById('log-results').innerHTML = '<p>لا توجد بيانات للعرض.</p>';
+        return;
+    }
+
+    // حساب بداية ونهاية الـ 20 سجل
+    const startIndex = (page - 1) * RECORDS_PER_PAGE;
+    const endIndex = startIndex + RECORDS_PER_PAGE;
+    const currentData = dataToRender.slice(startIndex, endIndex);
+    const totalPages = Math.ceil(dataToRender.length / RECORDS_PER_PAGE);
+
+    // نفس رأس الجدول الذي صممته أنت بدون أي تغيير
+    let table = `<table class="report-table">
+        <tr>
+            <th>رقم المعاملة</th>
+            <th>الرتبة</th>
+            <th>الرقم العسكري</th>
+            <th>الاسم</th>
+            <th>الوحدة الرئيسية</th>
+            <th>الوحدة الفرعية</th>
+            <th>نوع المعاملة</th>
+            <th>موضوع المذكرة</th>
+            <th>رقم الهاتف</th>
+            <th>المصدر</th>
+            <th>المسلم</th>
+            <th>المستلم</th>
+            <th>الفرع</th>
+            <th>عدد المستفيدين</th>
+            <th>تاريخ الاستلام</th>
+            <th style="color: #c5a059;">الملاحظات (العمود S)</th>
+            <th style="color: #b33939;">النواقص (العمود U)</th>
+            <th>الحالة</th>
+            <th>إجراء</th>
+        </tr>`;
+    
+    // بناء الصفوف للـ 20 معاملة
+    currentData.forEach((row) => {
+        // البحث عن الترتيب الأصلي في الشيت لضمان عمل أزرار التعديل والإتمام بدقة
+        const originalIndex = allTransactionsData.indexOf(row);
+        const rowIndex = originalIndex + 2; 
+        const status = row[17] || "مستمرة"; 
+        
+        // تنظيف التاريخ بنفس طريقتك
+        let cleanDate = row[1] || '-';
+        if (typeof cleanDate === 'string' && cleanDate.includes('T')) {
+            cleanDate = cleanDate.split('T')[0];
+        }
+        
+        const statusBtn = status.includes("مستمرة") 
+            ? `<button id="complete-btn-${rowIndex}" onclick="markCompleted(${rowIndex})" class="primary-btn" style="padding: 5px; background: #27ae60; font-size:12px; margin-bottom: 5px; width: 100%;">إتمام</button>` 
+            : `<button class="secondary-btn" style="padding: 5px; background: #7f8c8d; color: white; border: none; font-size:12px; margin-bottom: 5px; width: 100%; cursor: default;" disabled><i class="fa-solid fa-check-double"></i> مكتمل</button>`;
+        
+        const editBtn = `<button onclick="openEditModal(${rowIndex})" class="secondary-btn" style="padding: 5px; background: #2980b9; color: white; border: none; border-radius: 4px; font-size:12px; width: 100%; margin-bottom: 5px;">تعديل</button>`;
+        
+        const docLink = row[13] ? `<a href="${row[13]}" target="_blank" class="secondary-btn" style="padding: 5px; background: #8e44ad; color: white; border: none; border-radius: 4px; font-size:12px; width: 100%; text-decoration:none; display:inline-block; text-align:center;">المستند</a>` : '-';
+
+        table += `<tr>
+            <td>${row[0] || '-'}</td>
+            <td>${row[9] || '-'}</td>
+            <td>${row[8] || '-'}</td>
+            <td><strong>${row[10] || '-'}</strong></td>
+            <td>${row[11] || '-'}</td>
+            <td>${row[12] || '-'}</td>
+            <td>${row[4] || '-'}</td>
+            <td>${row[19] || '-'}</td>
+            <td>${row[15] || '-'}</td>
+            <td>${row[5] || '-'}</td>
+            <td>${row[7] || '-'}</td>
+            <td>${row[6] || '-'}</td>
+            <td>${row[3] || '-'}</td>
+            <td>${row[2] || '-'}</td>
+            <td>${cleanDate}</td>
+            <td style="background-color: #fff9e6;">${row[18] || '-'}</td>
+            <td style="background-color: #ffeaea; color: #b33939;">${row[20] || '-'}</td>
+            <td id="status-${rowIndex}" style="font-weight:bold;">${status}</td>
+            <td style="min-width: 80px;">
+                <div id="status-container-${rowIndex}">${statusBtn}</div>
+                ${editBtn} 
+                ${docLink}
+            </td>
+        </tr>`;
+    });
+    
+    table += `</table>`;
+
+    // 3. إضافة أزرار التنقل (عرض المزيد / السابق)
+    let paginationHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; padding: 10px; background: #fff; border-radius: 6px;">
+        <button onclick="changePage(-1)" class="secondary-btn" style="width: auto; padding: 8px 20px; background: #2b3a2f; color: white;" ${page === 1 ? 'disabled' : ''}><i class="fa-solid fa-arrow-right"></i> الأحدث</button>
+        <span style="font-weight: bold; color: #2b3a2f;">صفحة ${page} من ${totalPages} (الإجمالي: ${dataToRender.length} معاملة)</span>
+        <button onclick="changePage(1)" class="secondary-btn" style="width: auto; padding: 8px 20px; background: #2b3a2f; color: white;" ${page === totalPages || totalPages === 0 ? 'disabled' : ''}>الأقدم <i class="fa-solid fa-arrow-left"></i></button>
+    </div>`;
+
+    document.getElementById('log-results').innerHTML = table + paginationHTML;
+}
+
+// 4. دالة التنقل بين الصفحات
+function changePage(direction) {
+    currentPage += direction;
+    // التأكد من استمرار عمل فلتر البحث المباشر في حال تفعيل التنقل
+    const input = document.getElementById("log-search-input").value.toLowerCase();
+    if (input) {
+        filterLogTable(); 
+    } else {
+        renderTablePage(currentPage);
     }
 }
 // تعديل البحث ليعرض النواقص
+// استبدل دالة searchRecords للبحث العميق بسرعة الصاروخ عبر الذاكرة
 async function searchRecords() {
-    const query = document.getElementById('search-query').value;
+    const query = document.getElementById('search-query').value.toLowerCase().trim();
     if (!query) return;
+    
     document.getElementById('search-loading').style.display = 'block';
     document.getElementById('search-results').innerHTML = '';
 
-    try {
-        const response = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST', body: JSON.stringify({ action: 'search', query: query }),
+    // إذا لم تكن البيانات في الذاكرة لسبب ما، نجلبها
+    if (allTransactionsData.length === 0) {
+        await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'get_all' }) })
+            .then(res => res.json())
+            .then(res => { if(res.success) allTransactionsData = res.data; });
+    }
+
+    document.getElementById('search-loading').style.display = 'none';
+
+    // البحث في كامل المصفوفة (يستغرق أجزاء من الثانية)
+    const results = allTransactionsData.map((row, index) => {
+        return { row: row, rowIndex: index + 2 };
+    }).filter(item => {
+        const row = item.row;
+        return (row[10] && String(row[10]).toLowerCase().includes(query)) || 
+               (row[8]  && String(row[8]).toLowerCase().includes(query)) || 
+               (row[19] && String(row[19]).toLowerCase().includes(query)) ||
+               (row[0]  && String(row[0]).toLowerCase().includes(query));
+    });
+
+    if (results.length > 0) {
+        let html = '';
+        results.forEach(item => {
+            const row = item.row;
+            // تجهيز البيانات لزر الواتساب بنفس التنسيق القديم ليظل يعمل
+            const recordData = {
+                'الاسم': row[10], 'موضوع المذكرة': row[19], 'نوع المعاملة': row[4],
+                'الرقم العسكري': row[8], 'الهاتف': row[15], 'رابط الصورة': row[13], 'rowIndex': item.rowIndex
+            };
+            const encodedRecord = encodeURIComponent(JSON.stringify(recordData));
+            
+            html += `
+            <div class="result-card">
+                <h4><i class="fa-solid fa-user-shield"></i> ${row[10] || '-'}</h4>
+                <p><strong>الجهة/الموضوع:</strong> ${row[19] || row[4] || '-'}</p>
+                <p><strong>الرقم العسكري:</strong> ${row[8] || '-'}</p>
+                <p><strong>رقم الهاتف:</strong> ${row[15] || 'غير مسجل'}</p>
+                
+                <div style="margin-top: 10px;">
+                    <input type="text" id="note-${item.rowIndex}" value="${row[20] || ''}" placeholder="اكتب النواقص المطلوبة هنا..." class="input-group" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; border-right: 3px solid #b33939;">
+                </div>
+
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                    <button onclick="shareSearchViaWhatsApp('${encodedRecord}', ${item.rowIndex})" class="whatsapp-btn" style="margin-top:0; padding:8px;"><i class="fa-brands fa-whatsapp"></i> إرسال النواقص</button>
+                    <a href="${row[13] || '#'}" target="_blank" class="secondary-btn" style="text-align:center; text-decoration:none; padding:8px;">عرض المستند</a>
+                </div>
+            </div>`;
         });
-        const result = await response.json();
-        document.getElementById('search-loading').style.display = 'none';
-
-        if (result.success && result.results.length > 0) {
-            let html = '';
-            result.results.forEach(record => {
-                const encodedRecord = encodeURIComponent(JSON.stringify(record));
-                html += `
-                <div class="result-card">
-                    <h4><i class="fa-solid fa-user-shield"></i> ${record['الاسم']}</h4>
-                    <p><strong>الجهة/الموضوع:</strong> ${record['موضوع المذكرة'] || record['نوع المعاملة']}</p>
-                    <p><strong>الرقم العسكري:</strong> ${record['الرقم العسكري']}</p>
-                    <p><strong>رقم الهاتف:</strong> ${record['الهاتف'] || 'غير مسجل'}</p>
-                    
-                    <div style="margin-top: 10px;">
-                        <input type="text" id="note-${record.rowIndex}" placeholder="اكتب النواقص المطلوبة هنا..." class="input-group" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; border-right: 3px solid #b33939;">
-                    </div>
-
-                    <div style="display:flex; gap:10px; margin-top:10px;">
-                        <button onclick="shareSearchViaWhatsApp('${encodedRecord}', ${record.rowIndex})" class="whatsapp-btn" style="margin-top:0; padding:8px;"><i class="fa-brands fa-whatsapp"></i> إرسال النواقص</button>
-                        <a href="${record['رابط الصورة']}" target="_blank" class="secondary-btn" style="text-align:center; text-decoration:none; padding:8px;">عرض المستند</a>
-                    </div>
-                </div>`;
-            });
-            document.getElementById('search-results').innerHTML = html;
-        } else { document.getElementById('search-results').innerHTML = '<p>لا توجد نتائج.</p>'; }
-    } catch (error) { document.getElementById('search-loading').style.display = 'none'; }
+        document.getElementById('search-results').innerHTML = html;
+    } else { 
+        document.getElementById('search-results').innerHTML = '<p>لا توجد نتائج مطابقة في قاعدة البيانات.</p>'; 
+    }
 }
-
 // دالة المشاركة للواتساب لتعتمد تسمية "النواقص"
 async function shareSearchViaWhatsApp(encodedData, rowIndex) {
     const data = JSON.parse(decodeURIComponent(encodedData));
@@ -342,21 +443,39 @@ async function loadStats() {
     // جلب البيانات الأساسية للتمكن من تصديرها لاحقاً
     if(allTransactionsData.length === 0) loadTransactionLog();
 }
-// ==========================================
-// تصدير وعرض التقارير (إحصائي + تفصيلي) وتحميلها كملف Excel
-// ==========================================
 function exportExcel(type) {
     if (!allTransactionsData || allTransactionsData.length === 0) {
-        document.getElementById('report-results').innerHTML = '<p style="color:var(--accent-color);"><i class="fa-solid fa-spinner fa-spin"></i> جاري جلب البيانات من الأرشيف... يرجى إعادة الضغط بعد ثوانٍ.</p>';
+        document.getElementById('report-results').innerHTML = '<p style="color:var(--accent-color);"><i class="fa-solid fa-spinner fa-spin"></i> جاري جلب البيانات من الأرشيف... يرجى الانتظار.</p>';
         loadTransactionLog();
         return;
     }
 
+    // جلب التواريخ لعنوان التقرير
+    const dateFrom = document.getElementById('date-from').value;
+    const dateTo = document.getElementById('date-to').value;
+    let titleDate = (dateFrom && dateTo) ? `من (${dateFrom}) إلى (${dateTo})` : `الشامل لجميع الفترات`;
+
     let exportData = allTransactionsData;
-    let excelHTML = '<table border="1">'; // إضافة حدود للجدول لكي تظهر في الإكسل
+    
+    // فلترة السجلات بناءً على التاريخ المختار قبل تصدير الإكسل
+    if (dateFrom && dateTo) {
+        exportData = exportData.filter(row => {
+            if (!row[1]) return false;
+            let rowDateStr = typeof row[1] === 'string' ? row[1].split('T')[0] : row[1];
+            let rowDate = new Date(rowDateStr);
+            return rowDate >= new Date(dateFrom) && rowDate <= new Date(dateTo);
+        });
+    }
+
+    let excelHTML = `<table border="1">
+        <tr>
+            <th colspan="5" style="font-size:18px; text-align:center; background-color:#c5a059; color:white; padding: 15px;">
+                تقرير المعاملات - ${titleDate} | تاريخ التوليد: ${new Date().toLocaleDateString('ar-SA')}
+            </th>
+        </tr>`;
+    
     let fileName = "";
 
-    // التقرير التفصيلي
     if (type === 'detailed') {
         fileName = "تقرير_تفصيلي.xls";
         excelHTML += `
@@ -378,15 +497,14 @@ function exportExcel(type) {
                 </tr>`;
         });
     } 
-    // التقرير الإحصائي
     else if (type === 'stats') {
-        fileName = "تقرير_إحصائي.xls";
+        fileName = "تقرير_إحصائي_ذكي.xls";
         excelHTML += `
             <tr>
                 <th style="background-color:#2b3a2f; color:white;">نوع المعاملة / الموضوع</th>
                 <th style="background-color:#2b3a2f; color:white;">الجهة</th>
-                <th style="background-color:#2b3a2f; color:white;">المعاملات المكتملة</th>
-                <th style="background-color:#2b3a2f; color:white;">المعاملات المستمرة</th>
+                <th style="background-color:#2b3a2f; color:white;">المكتملة</th>
+                <th style="background-color:#2b3a2f; color:white;">المستمرة</th>
                 <th style="background-color:#2b3a2f; color:white;">الإجمالي</th>
             </tr>
         `;
@@ -394,23 +512,19 @@ function exportExcel(type) {
         let grouped = {};
         exportData.forEach(row => {
             if(!row) return;
-            let typeKey = String(row[4] || "غير محدد");
+            
+            // استخدام الذكاء لتوحيد المسميات (سيجمع المذكرات والإحالات المتشابهة في سطر واحد)
+            let typeKey = normalizeTransactionType(row[4] || row[19] || "غير محدد"); 
             let branchKey = String(row[3] || "غير محدد");
             let status = String(row[17] || "مستمرة"); 
             
             let key = typeKey + "|||" + branchKey;
             
-            if (!grouped[key]) {
-                grouped[key] = { completed: 0, ongoing: 0, total: 0 };
-            }
+            if (!grouped[key]) grouped[key] = { completed: 0, ongoing: 0, total: 0 };
             
             grouped[key].total += 1;
-            
-            if (status.includes("مستمرة")) {
-                grouped[key].ongoing += 1;
-            } else {
-                grouped[key].completed += 1;
-            }
+            if (status.includes("مستمرة")) grouped[key].ongoing += 1;
+            else grouped[key].completed += 1;
         });
 
         for (let k in grouped) {
@@ -429,27 +543,16 @@ function exportExcel(type) {
     
     excelHTML += '</table>';
     
-    // 1. عرض التقرير في الشاشة للمعاينة
     document.getElementById('report-results').innerHTML = excelHTML.replace('<table border="1">', '<table class="report-table">');
 
-    // 2. كود تحميل الملف كـ Excel (يدعم اللغة العربية والاتجاه من اليمين لليسار)
     let excelFile = `
         <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel' xmlns='http://www.w3.org/TR/REC-html40'>
-        <head>
-            <meta charset='utf-8'>
-            <style>
-                body, table { direction: rtl; font-family: Arial, sans-serif; text-align: right; }
-            </style>
-        </head>
-        <body>
-            ${excelHTML}
-        </body>
-        </html>
+        <head><meta charset='utf-8'><style> body, table { direction: rtl; font-family: Arial, sans-serif; text-align: right; } </style></head>
+        <body>${excelHTML}</body></html>
     `;
     
     let blob = new Blob([excelFile], { type: 'application/vnd.ms-excel' });
     let url = URL.createObjectURL(blob);
-    
     let downloadLink = document.createElement("a");
     downloadLink.href = url;
     downloadLink.download = fileName;
@@ -497,34 +600,23 @@ async function exportMemo() {
     } catch (e) { document.getElementById('memo-loading').style.display = 'none'; }
 }
 // دالة البحث السريع (الفلترة) داخل جدول سجل المعاملات
+// استبدل دالة الفلترة السريعة لتبحث في كامل الـ 10,000 سجل وتعرض لك النتائج مقسمة أيضاً
 function filterLogTable() {
     const input = document.getElementById("log-search-input").value.toLowerCase();
-    const table = document.querySelector("#log-results .report-table");
-    
-    // إذا لم يكن الجدول محملاً بعد، نوقف العملية
-    if (!table) return; 
-    
-    const trs = table.getElementsByTagName("tr");
-    
-    // نبدأ من 1 لتخطي صف العناوين الأول (رأس الجدول)
-    for (let i = 1; i < trs.length; i++) {
-        const tds = trs[i].getElementsByTagName("td");
-        let rowContainsSearchTerm = false;
-        
-        if (tds.length > 0) {
-            // tds[0] هو الاسم، و tds[2] هو رقم المعاملة (بناءً على ترتيب الجدول)
-            const nameCell = tds[0].textContent || tds[0].innerText;
-            const transNumCell = tds[2].textContent || tds[2].innerText;
-            
-            // التحقق مما إذا كان النص المدخل موجوداً في الاسم أو في رقم المعاملة
-            if (nameCell.toLowerCase().includes(input) || transNumCell.toLowerCase().includes(input)) {
-                rowContainsSearchTerm = true;
-            }
-        }
-        
-        // إظهار أو إخفاء الصف بناءً على نتيجة البحث
-        trs[i].style.display = rowContainsSearchTerm ? "" : "none";
+    if (!input) {
+        currentPage = 1;
+        renderTablePage(currentPage); 
+        return;
     }
+    
+    const filteredData = allTransactionsData.filter(row => {
+        const nameCell = String(row[10] || '').toLowerCase();
+        const transNumCell = String(row[0] || '').toLowerCase();
+        return nameCell.includes(input) || transNumCell.includes(input);
+    });
+    
+    // إرسال البيانات المفلترة لترسمها دالة العرض
+    renderTablePage(1, filteredData); 
 }
 // ==========================================
 // وظائف نافذة التعديل المنبثقة (دوال جديدة)
