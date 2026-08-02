@@ -459,16 +459,25 @@ function exportExcel(type) {
 
     let exportData = allTransactionsData;
     
-    // فلترة السجلات بناءً على التاريخ المختار قبل تصدير الإكسل
+   // فلترة السجلات بناءً على التاريخ المختار قبل تصدير الإكسل
     if (dateFrom && dateTo) {
         exportData = exportData.filter(row => {
-            if (!row[1]) return false;
-            let rowDateStr = typeof row[1] === 'string' ? row[1].split('T')[0] : row[1];
+            // استخدام row[14] الذي يمثل تاريخ إضافة المعاملة للنظام
+            if (!row[14]) return false; 
+            
+            let rowDateStr = typeof row[14] === 'string' ? row[14].split('T')[0] : row[14];
             let rowDate = new Date(rowDateStr);
-            return rowDate >= new Date(dateFrom) && rowDate <= new Date(dateTo);
+            
+            let from = new Date(dateFrom);
+            let to = new Date(dateTo);
+            
+            // ضبط الوقت لضمان شمول المعاملات في اليوم الأول واليوم الأخير بالكامل
+            from.setHours(0, 0, 0, 0);
+            to.setHours(23, 59, 59, 999);
+
+            return rowDate >= from && rowDate <= to;
         });
     }
-
     let excelHTML = `<table border="1">
         <tr>
             <th colspan="5" style="font-size:18px; text-align:center; background-color:#c5a059; color:white; padding: 15px;">
