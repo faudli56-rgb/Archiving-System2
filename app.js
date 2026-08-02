@@ -1,6 +1,7 @@
 // ⚠️ ضع هنا رابط تطبيق الويب (Web App URL) بعد التحديث الأخير
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbypNxrpZWpyIpgde0Lgz27BCc8j2tZLBUVYxHcLkSRynt38vm48NvNe4QD_WzUqh24/exec';
-
+let currentUserRole = "";
+let currentUserName = "";
 let currentExtractedData = null; 
 let imageBase64Data = "";
 let allTransactionsData = []; // لحفظ البيانات للإكسل
@@ -57,7 +58,13 @@ async function login() {
             method: 'POST', body: JSON.stringify({ action: 'login', username: user, password: pass }),
         });
         const result = await response.json();
-        if (result.success) { errorMsg.innerText = ""; showScreen('app-section'); } 
+        if (result.success) { 
+            errorMsg.innerText = ""; 
+            currentUserRole = result.role;
+            currentUserName = result.name;
+            applyPermissions(); // تطبيق الصلاحيات
+            showScreen('app-section'); 
+        } 
         else errorMsg.innerText = result.message;
     } catch (error) { errorMsg.innerText = "خطأ في الاتصال."; }
 }
@@ -775,5 +782,83 @@ async function markCompleted(rowIndex) {
     } catch (e) { 
         alert("فشل تحديث الحالة."); 
         btn.innerHTML = 'إتمام'; // استرجاع النص في حال الفشل
+    }
+}
+// دالة الصلاحيات
+function applyPermissions() {
+    loadChatMessages(); // تشغيل الشات للجميع
+
+    const statsBtn = document.querySelector('button[onclick="showTab(\'stats-tab\')"]');
+    const memoBtn = document.querySelector('button[onclick="showTab(\'memo-tab\')"]');
+
+    if (currentUserRole === 'manager') {
+        if(statsBtn) statsBtn.style.display = 'inline-block';
+        if(memoBtn) memoBtn.style.display = 'inline-block';
+    } else {
+        // إخفاء التقارير والمذكرات عن المندوبين
+        if(statsBtn) statsBtn.style.display = 'none';
+        if(memoBtn) memoBtn.style.display = 'none';
+    }
+}
+
+// دالة جلب وعرض الرسائل (تصميم فقاعات الواتساب)
+async function loadChatMessages() {
+    const chatContainer = document.getElementById('chat-messages');
+    
+    if (chatContainer.innerHTML.trim() === '') {
+        chatContainer.innerHTML = '<div style="text-align:center; color:#c5a059;"><i class="fa-solid fa-spinner fa-spin"></i> جاري مزامنة الرسائل...</div>';
+    }
+    
+    fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'get_chat' }) })
+    .then(res => res.json())
+    .then(result => {
+        if (result.success) {
+            chatContainer.innerHTML = ''; 
+            result.messages.forEach(msg => {
+                const isMe = msg[1] === currentUserName;
+                
+                const bubbleStyle = isMe 
+                    ? 'align-self: flex-start; background: #2b3a2f; color: white; border-radius: 10px 0 10px 10px;' 
+                    : 'align-self: flex-end; background: #ffffff; color: #333; border-radius: 0 10px 10px 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);';
+
+                const senderName = isMe ? 'أنت' : `<span style="color: #c5a059; font-weight: bold;">${msg[1]}</span>`;
+
+                chatContainer.innerHTML += `
+                    <div style="max-width: 75%; padding: 10px 15px; margin-bottom: 5px; ${bubbleStyle}">
+                        <div style="font-size: 11px; margin-bottom: 5px; display: flex; justify-content: space-between; gap: 15px;">
+                            ${senderName}
+                            <span style="opacity: 0.7; font-size: 9px;">${msg[0]}</span>
+                        </div>
+                        <div style="font-size: 15px; line-height: 1.4;">${msg[2]}</div>
+                    </div>
+                `;
+            });
+            chatContainer.scrollTop = chatContainer.scrollHeight; 
+        }
+    });
+}
+
+// دالة إرسال رسالة جديدة
+async function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    const text = input.value.trim();
+    if (!text) return;
+    
+    input.disabled = true;
+    
+    try {
+        const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST', body: JSON.stringify({ action: 'add_chat', name: currentUserName, message: text })
+        });
+        const result = await response.json();
+        if (result.success) {
+            input.value = '';
+            loadChatMessages(); 
+        }
+    } catch (e) {
+        alert("فشل إرسال الملاحظة");
+    } finally {
+        input.disabled = false;
+        input.focus();
     }
 }
