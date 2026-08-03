@@ -43,9 +43,11 @@ function showTab(tabId) {
     document.getElementById('nav-links').classList.remove('show'); // إغلاق القائمة في الجوال
     
     if (tabId === 'stats-tab') loadStats();
-    if (tabId === 'log-tab') loadTransactionLog(); // جلب السجل عند فتح التبويب
+    if (tabId === 'log-tab') loadTransactionLog();
+    
+    // === هذا هو السطر الجديد الذي سيقوم بتحديث الشات فوراً عند فتحه ===
+    if (tabId === 'chat-tab') loadChatMessages(); 
 }
-
 async function login() {
     const user = document.getElementById('username').value;
     const pass = document.getElementById('password').value;
@@ -805,39 +807,55 @@ function applyPermissions() {
 async function loadChatMessages() {
     const chatContainer = document.getElementById('chat-messages');
     
+    // إظهار التحميل فقط إذا كانت الغرفة فارغة
     if (chatContainer.innerHTML.trim() === '') {
-        chatContainer.innerHTML = '<div style="text-align:center; color:#c5a059;"><i class="fa-solid fa-spinner fa-spin"></i> جاري مزامنة الرسائل...</div>';
+        chatContainer.innerHTML = '<div style="text-align:center; color:#c5a059; padding:20px;"><i class="fa-solid fa-spinner fa-spin"></i> جاري مزامنة التوجيهات...</div>';
     }
     
-    fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'get_chat' }) })
-    .then(res => res.json())
-    .then(result => {
+    try {
+        const response = await fetch(APPS_SCRIPT_URL, { 
+            method: 'POST', 
+            body: JSON.stringify({ action: 'get_chat' }) 
+        });
+        const result = await response.json();
+        
         if (result.success) {
             chatContainer.innerHTML = ''; 
+            
+            // إذا كان الشات فارغاً
+            if (result.messages.length === 0) {
+                chatContainer.innerHTML = '<div style="text-align:center; color:#888; padding: 20px;">لا توجد رسائل حتى الآن. ابدأ المحادثة!</div>';
+                return;
+            }
+            
             result.messages.forEach(msg => {
-                const isMe = msg[1] === currentUserName;
-                
+                // التأكد من أن الصف ليس فارغاً
+                if(!msg[0] && !msg[1] && !msg[2]) return; 
+
+                const isMe = (msg[1] === currentUserName);
                 const bubbleStyle = isMe 
                     ? 'align-self: flex-start; background: #2b3a2f; color: white; border-radius: 10px 0 10px 10px;' 
                     : 'align-self: flex-end; background: #ffffff; color: #333; border-radius: 0 10px 10px 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);';
-
-                const senderName = isMe ? 'أنت' : `<span style="color: #c5a059; font-weight: bold;">${msg[1]}</span>`;
-
+                
+                const senderName = isMe ? 'أنت' : `<span style="color: #c5a059; font-weight: bold;">${msg[1] || 'غير معروف'}</span>`;
+                
                 chatContainer.innerHTML += `
                     <div style="max-width: 75%; padding: 10px 15px; margin-bottom: 5px; ${bubbleStyle}">
                         <div style="font-size: 11px; margin-bottom: 5px; display: flex; justify-content: space-between; gap: 15px;">
                             ${senderName}
-                            <span style="opacity: 0.7; font-size: 9px;">${msg[0]}</span>
+                            <span style="opacity: 0.7; font-size: 9px;">${msg[0] || ''}</span>
                         </div>
-                        <div style="font-size: 15px; line-height: 1.4;">${msg[2]}</div>
+                        <div style="font-size: 15px; line-height: 1.4;">${msg[2] || ''}</div>
                     </div>
                 `;
             });
+            // التمرير التلقائي لأسفل الشات
             chatContainer.scrollTop = chatContainer.scrollHeight; 
         }
-    });
+    } catch (error) {
+        console.error("خطأ في جلب الشات:", error);
+    }
 }
-
 // دالة إرسال رسالة جديدة
 async function sendChatMessage() {
     const input = document.getElementById('chat-input');
