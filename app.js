@@ -1,15 +1,14 @@
-// ⚠️ ضع هنا رابط تطبيق الويب (Web App URL) بعد التحديث الأخير
+// ⚠️ ضع هنا رابط تطبيق الويب (Web App URL) 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbypNxrpZWpyIpgde0Lgz27BCc8j2tZLBUVYxHcLkSRynt38vm48NvNe4QD_WzUqh24/exec';
 
 let currentExtractedData = null; 
 let imageBase64Data = "";
 let allTransactionsData = [];
+let currentLogLimit = 5;
 
 // ==========================================
 // 🛡️ قسم الحماية والمصادقة الأمنية
 // ==========================================
-
-// 1. فحص توفر الجلسة عند فتح التطبيق
 window.onload = function() {
     if(!sessionStorage.getItem('military_auth_token')) {
         showScreen('login-section');
@@ -18,34 +17,24 @@ window.onload = function() {
     }
 };
 
-// 2. دالة الاتصال الآمنة الموحدة (ترسل التوكن مع كل طلب)
 async function secureFetch(bodyData) {
     const token = sessionStorage.getItem('military_auth_token');
-    
-    // إذا لم يكن هناك توكن والعملية ليست تسجيل دخول، اطرد المستخدم
     if (!token && bodyData.action !== 'login') {
         logout();
         alert("انتهت صلاحية الجلسة، يرجى تسجيل الدخول مجدداً لدواعي أمنية.");
         throw new Error("Unauthorized");
     }
-
-    // إرفاق التوكن العسكري السري في الطلب
     if(token) bodyData.token = token;
 
     const response = await fetch(APPS_SCRIPT_URL, {
-        method: 'POST', 
-        body: JSON.stringify(bodyData)
+        method: 'POST', body: JSON.stringify(bodyData)
     });
-    
     const result = await response.json();
-    
-    // إذا رفض السيرفر التوكن أو اكتشف اختراق
     if(result.success === false && result.message && result.message.includes("غير مصرح")) {
         logout();
         alert(result.message);
         throw new Error("Unauthorized");
     }
-    
     return result;
 }
 
@@ -59,7 +48,6 @@ async function login() {
     try {
         const result = await secureFetch({ action: 'login', username: user, password: pass });
         if (result.success) { 
-            // حفظ التوكن في جلسة المتصفح بشكل آمن
             sessionStorage.setItem('military_auth_token', result.token);
             errorMsg.innerText = ""; 
             showScreen('app-section'); 
@@ -69,7 +57,7 @@ async function login() {
 }
 
 function logout() {
-    sessionStorage.removeItem('military_auth_token'); // تدمير الجلسة
+    sessionStorage.removeItem('military_auth_token');
     document.getElementById('username').value = ''; 
     document.getElementById('password').value = ''; 
     showScreen('login-section');
@@ -78,11 +66,7 @@ function logout() {
 // ==========================================
 // التنقل والواجهة
 // ==========================================
-
-function toggleMenu() {
-    const navLinks = document.getElementById('nav-links');
-    navLinks.classList.toggle('show');
-}
+function toggleMenu() { document.getElementById('nav-links').classList.toggle('show'); }
 
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active-screen'));
@@ -94,7 +78,6 @@ function showTab(tabId) {
     document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById(tabId).classList.add('active-tab');
     event.currentTarget.classList.add('active');
-    
     document.getElementById('nav-links').classList.remove('show'); 
     
     if (tabId === 'stats-tab') loadStats();
@@ -104,7 +87,6 @@ function showTab(tabId) {
 // ==========================================
 // مسح ومعالجة المستندات
 // ==========================================
-
 function previewImage(event) {
     const file = event.target.files[0];
     if (file) {
@@ -129,7 +111,6 @@ async function processDocument() {
     try {
         const result = await secureFetch({ action: 'analyze_image', imageBase64: imageBase64Data });
         document.getElementById('loading-spinner').style.display = 'none';
-
         if (result.success) {
             currentExtractedData = result.data;
             renderEditForm(currentExtractedData);
@@ -146,41 +127,26 @@ async function processDocument() {
 
 function renderEditForm(data) {
     const ind = (data.individuals && data.individuals[0]) ? data.individuals[0] : {};
-    
     let html = `
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <div class="input-group" style="grid-column: span 2;">
-                <input type="text" id="edit-phone" placeholder="رقم هاتف صاحب المعاملة (إدخال يدوي)" style="border-color: var(--accent-color);">
-            </div>
-            
-            <div class="input-group" style="grid-column: span 2;">
-                <input type="text" id="edit-notes" placeholder="ملاحظات إضافية أو نواقص (اختياري)" style="border-color: var(--accent-color); background-color: #fff9e6;">
-            </div>
-
+            <div class="input-group" style="grid-column: span 2;"><input type="text" id="edit-phone" placeholder="رقم هاتف صاحب المعاملة (إدخال يدوي)" style="border-color: var(--accent-color);"></div>
+            <div class="input-group" style="grid-column: span 2;"><input type="text" id="edit-notes" placeholder="ملاحظات إضافية أو نواقص (اختياري)" style="border-color: var(--accent-color); background-color: #fff9e6;"></div>
             <div class="input-group"><input type="text" id="edit-extracted-date" value="${data.extracted_date || ''}" placeholder="تاريخ أسفل الورقة (إن وجد)"></div>
             <div class="input-group"><input type="text" id="edit-subject" value="${data.memo_subject || ''}" placeholder="موضوع المذكرة"></div>
-            
             <div class="input-group"><input type="text" id="edit-trans-num" value="${data.transaction_number || ''}" placeholder="رقم المعاملة"></div>
             <div class="input-group"><input type="text" id="edit-date" value="${data.receipt_date || ''}" placeholder="تاريخ الاستلام"></div>
-            
             <div class="input-group"><input type="text" id="edit-ben-count" value="${data.beneficiaries_count || ''}" placeholder="عدد المستفيدين"></div>
             <div class="input-group"><input type="text" id="edit-branch" value="${data.branch || ''}" placeholder="الفرع / الجهة"></div>
-            
             <div class="input-group"><input type="text" id="edit-type" value="${data.transaction_type || ''}" placeholder="نوع المعاملة"></div>
             <div class="input-group"><input type="text" id="edit-source" value="${data.source || ''}" placeholder="المصدر"></div>
-            
             <div class="input-group"><input type="text" id="edit-receiver" value="${data.receiver || ''}" placeholder="المستلم"></div>
             <div class="input-group"><input type="text" id="edit-deliverer" value="${data.deliverer || ''}" placeholder="المُسلّم"></div>
-            
             <div class="input-group"><input type="text" id="edit-mil-num" value="${ind.military_number || ''}" placeholder="الرقم العسكري"></div>
             <div class="input-group"><input type="text" id="edit-rank" value="${ind.rank || ''}" placeholder="الرتبة"></div>
-            
             <div class="input-group" style="grid-column: span 2;"><input type="text" id="edit-name" value="${ind.name || ''}" placeholder="الاسم"></div>
-            
             <div class="input-group"><input type="text" id="edit-main-unit" value="${ind.main_unit || ''}" placeholder="الوحدة الرئيسية"></div>
             <div class="input-group"><input type="text" id="edit-sub-unit" value="${ind.sub_unit || ''}" placeholder="الوحدة الفرعية"></div>
-        </div>
-    `;
+        </div>`;
     document.getElementById('edit-fields').innerHTML = html;
     document.getElementById('edit-preview-section').style.display = 'block';
 }
@@ -193,7 +159,6 @@ async function saveEditedData() {
     currentExtractedData.notes = document.getElementById('edit-notes').value; 
     currentExtractedData.extracted_date = document.getElementById('edit-extracted-date').value;
     currentExtractedData.memo_subject = document.getElementById('edit-subject').value;
-
     currentExtractedData.transaction_number = document.getElementById('edit-trans-num').value;
     currentExtractedData.receipt_date = document.getElementById('edit-date').value;
     currentExtractedData.beneficiaries_count = document.getElementById('edit-ben-count').value;
@@ -213,7 +178,6 @@ async function saveEditedData() {
     try {
         const result = await secureFetch({ action: 'save_record', data: currentExtractedData, imageBase64: imageBase64Data });
         document.getElementById('loading-spinner').style.display = 'none';
-
         if (result.success) {
             document.getElementById('result-box').style.display = 'block';
             document.getElementById('image-preview').style.display = 'none';
@@ -228,34 +192,63 @@ async function saveEditedData() {
 }
 
 // ==========================================
-// سجل المعاملات، البحث، وزر عرض المزيد
+// استيراد الإكسل
 // ==========================================
+async function importExcel(event) {
+    const file = event.target.files[0];
+    if (!file) return;
 
-let currentLogLimit = 5; // عدد السجلات الافتراضي الذي سيظهر
+    document.getElementById('import-status').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري قراءة الملف...';
+    
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const excelData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+            
+            if(excelData.length < 2) return document.getElementById('import-status').innerText = 'الملف فارغ أو لا يحتوي على بيانات.';
 
+            document.getElementById('import-status').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الرفع إلى قاعدة البيانات...';
+            
+            const result = await secureFetch({ action: 'import_excel', data: excelData });
+            
+            if(result.success) {
+                document.getElementById('import-status').innerHTML = `<span style="color: green;"><i class="fa-solid fa-check"></i> تم استيراد ${result.count} صف بنجاح.</span>`;
+                loadTransactionLog(); 
+            } else {
+                document.getElementById('import-status').innerText = 'خطأ: ' + result.message;
+            }
+        } catch(error) {
+            document.getElementById('import-status').innerText = 'حدث خطأ في قراءة الملف.';
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+// ==========================================
+// سجل المعاملات (عرض 5 والبحث المتقدم)
+// ==========================================
 async function loadTransactionLog() {
     document.getElementById('log-results').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري جلب السجل...';
     try {
         const result = await secureFetch({ action: 'get_all' });
-        
         if (result.success) {
             allTransactionsData = result.data; 
-            currentLogLimit = 5; // إعادة الضبط لـ 5 عند كل مرة نفتح فيها السجل
-            renderLogTable();    // استدعاء دالة الرسم
+            currentLogLimit = 5; 
+            renderLogTable();    
         }
-    } catch (e) { 
-        document.getElementById('log-results').innerHTML = 'خطأ أمني أو انقطاع اتصال.'; 
-    }
+    } catch (e) { document.getElementById('log-results').innerHTML = 'خطأ أمني أو انقطاع اتصال.'; }
 }
 
-// دالة جديدة تقوم برسم الجدول بالعدد المطلوب
 function renderLogTable(dataToRender = allTransactionsData, isSearch = false) {
     if (!dataToRender || dataToRender.length === 0) {
         document.getElementById('log-results').innerHTML = '<p style="text-align:center; padding:20px;">لا توجد بيانات لعرضها.</p>';
         return;
     }
 
-    // إذا كنا نبحث سنعرض جميع النتائج المطابقة، وإلا نعرض العدد المحدد فقط
     let limit = isSearch ? dataToRender.length : currentLogLimit;
 
     let table = `<table class="report-table">
@@ -269,11 +262,9 @@ function renderLogTable(dataToRender = allTransactionsData, isSearch = false) {
         </tr>`;
     
     for (let i = 0; i < dataToRender.length; i++) {
-        if (i >= limit) break; // التوقف إذا وصلنا لـ 5 سجلات (أو الحد الحالي)
+        if (i >= limit) break; 
         
         const row = dataToRender[i];
-        
-        // جلب الفهرس الأصلي للحفاظ على عمل أزرار الإتمام والتعديل بشكل صحيح
         const originalIndex = allTransactionsData.indexOf(row);
         const rowIndex = originalIndex + 2; 
 
@@ -286,7 +277,6 @@ function renderLogTable(dataToRender = allTransactionsData, isSearch = false) {
             : `<button class="secondary-btn" style="padding: 5px; background: #7f8c8d; color: white; border: none; font-size:12px; margin-bottom: 5px; width: 100%; cursor: default;" disabled><i class="fa-solid fa-check-double"></i> مكتمل</button>`;
         
         const editBtn = `<button onclick="openEditModal(${rowIndex})" class="secondary-btn" style="padding: 5px; background: #2980b9; color: white; border: none; border-radius: 4px; font-size:12px; width: 100%; margin-bottom: 5px;">تعديل</button>`;
-        
         const docLink = row[13] ? `<a href="${row[13]}" target="_blank" class="secondary-btn" style="padding: 5px; background: #8e44ad; color: white; border: none; border-radius: 4px; font-size:12px; width: 100%; text-decoration:none; display:inline-block; text-align:center;">المستند</a>` : '-';
 
         table += `<tr>
@@ -298,16 +288,12 @@ function renderLogTable(dataToRender = allTransactionsData, isSearch = false) {
             <td>${cleanDate}</td><td style="background-color: #fff9e6;">${row[18] || '-'}</td>
             <td style="background-color: #ffeaea; color: #b33939;">${row[20] || '-'}</td>
             <td id="status-${rowIndex}" style="font-weight:bold;">${status}</td>
-            <td style="min-width: 80px;">
-                <div id="status-container-${rowIndex}">${statusBtn}</div>
-                ${editBtn} ${docLink}
-            </td>
+            <td style="min-width: 80px;"><div id="status-container-${rowIndex}">${statusBtn}</div>${editBtn} ${docLink}</td>
         </tr>`;
     }
     
     table += `</table>`;
 
-    // 📍 إضافة زر عرض المزيد تحت الجدول إذا كانت هناك بيانات إضافية
     if (!isSearch && dataToRender.length > limit) {
         table += `
         <div style="text-align: center; margin-top: 20px;">
@@ -320,32 +306,27 @@ function renderLogTable(dataToRender = allTransactionsData, isSearch = false) {
     document.getElementById('log-results').innerHTML = table;
 }
 
-// دالة تعمل عند الضغط على زر "عرض المزيد"
 function showMoreLog() {
-    currentLogLimit += 10; // تزيد 10 صفوف إضافية في كل ضغطة (يمكنك تعديلها)
-    renderLogTable();      // إعادة رسم الجدول بالحد الجديد
+    currentLogLimit += 10; 
+    renderLogTable();      
 }
 
-// تم تعديل دالة البحث لتبحث في جميع البيانات (الظاهرة والمخفية)
 function filterLogTable() {
     const input = document.getElementById("log-search-input").value.toLowerCase();
-    
     if (input.trim() === '') {
-        renderLogTable(); // إذا مسح المستخدم مربع البحث، يرجع الجدول لوضعه الافتراضي (5 صفوف)
+        renderLogTable(); 
         return;
     }
-
-    // فلترة السجلات ومطابقة الأسماء أو أرقام المعاملات
     let filteredData = allTransactionsData.filter(row => {
         const nameCell = (row[10] || '').toString().toLowerCase();
         const transNumCell = (row[0] || '').toString().toLowerCase();
         return nameCell.includes(input) || transNumCell.includes(input);
     });
-
-    renderLogTable(filteredData, true); // إرسال true ليظهر كل النتائج المطابقة للبحث بدون تقييد العدد
+    renderLogTable(filteredData, true); 
 }
+
 // ==========================================
-// البحث والأرشيف
+// الأرشيف والبحث (الشاشة المخصصة)
 // ==========================================
 async function searchRecords() {
     const query = document.getElementById('search-query').value;
@@ -367,11 +348,9 @@ async function searchRecords() {
                     <p><strong>الجهة/الموضوع:</strong> ${record['موضوع المذكرة'] || record['نوع المعاملة']}</p>
                     <p><strong>الرقم العسكري:</strong> ${record['الرقم العسكري']}</p>
                     <p><strong>رقم الهاتف:</strong> ${record['الهاتف'] || 'غير مسجل'}</p>
-                    
                     <div style="margin-top: 10px;">
                         <input type="text" id="note-${record.rowIndex}" placeholder="اكتب النواقص المطلوبة هنا..." class="input-group" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; border-right: 3px solid #b33939;">
                     </div>
-
                     <div style="display:flex; gap:10px; margin-top:10px;">
                         <button onclick="shareSearchViaWhatsApp('${encodedRecord}', ${record.rowIndex})" class="whatsapp-btn" style="margin-top:0; padding:8px;"><i class="fa-brands fa-whatsapp"></i> إرسال النواقص</button>
                         <a href="${record['رابط الصورة']}" target="_blank" class="secondary-btn" style="text-align:center; text-decoration:none; padding:8px;">المستند</a>
@@ -395,13 +374,79 @@ async function shareSearchViaWhatsApp(encodedData, rowIndex) {
     text += `*النوع/الموضوع:* ${data['نوع المعاملة'] || 'غير متوفر'}\n`;
     if(data['الهاتف']) text += `*هاتف:* ${data['الهاتف']}\n`;
     if(missing) text += `\n*النواقص المطلوبة:*\n${missing}\n`;
-
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
 }
+
+// ==========================================
+// التعديل والإتمام
+// ==========================================
+function openEditModal(rowIndex) {
+    const row = allTransactionsData[rowIndex - 2];
+    if(!row) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'edit-modal-overlay';
+    overlay.style = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; justify-content:center; align-items:center; direction:rtl;';
+    
+    const modal = document.createElement('div');
+    modal.style = 'background:#fff; padding:25px; border-radius:10px; width:90%; max-width:450px; box-shadow:0 10px 30px rgba(0,0,0,0.2);';
+    
+    modal.innerHTML = `
+        <h3 style="margin-bottom:20px; color:var(--primary-color);"><i class="fa-solid fa-pen-to-square"></i> تعديل بيانات المعاملة</h3>
+        <div style="margin-bottom: 10px;"><label style="font-weight:bold; font-size:14px; color:#555;">الاسم:</label><input type="text" id="edit-m-name" value="${row[10] || ''}" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; margin-top:5px;"></div>
+        <div style="margin-bottom: 10px;"><label style="font-weight:bold; font-size:14px; color:#555;">رقم المعاملة:</label><input type="text" id="edit-m-trans" value="${row[0] || ''}" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; margin-top:5px;"></div>
+        <div style="margin-bottom: 10px;"><label style="font-weight:bold; font-size:14px; color:#555;">الجهة / الفرع:</label><input type="text" id="edit-m-branch" value="${row[3] || ''}" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; margin-top:5px;"></div>
+        <div style="margin-bottom: 10px;"><label style="font-weight:bold; font-size:14px; color:#c5a059;">الملاحظات (عند المسح):</label><input type="text" id="edit-m-notes" value="${row[18] || ''}" style="width:100%; padding:8px; border:1px solid #c5a059; border-radius:4px; margin-top:5px; background:#fff9e6;"></div>
+        <div style="margin-bottom: 15px;"><label style="font-weight:bold; font-size:14px; color:#b33939;">النواقص (من البحث):</label><input type="text" id="edit-m-missing" value="${row[20] || ''}" style="width:100%; padding:8px; border:1px solid #b33939; border-radius:4px; margin-top:5px; background:#ffeaea;"></div>
+        
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button onclick="submitEdit(${rowIndex})" class="primary-btn" id="save-edit-btn" style="flex:1;">حفظ التعديلات</button>
+            <button onclick="closeEditModal()" class="secondary-btn" style="background:#e74c3c; color:white; flex:1; border:none;">إلغاء</button>
+        </div>
+    `;
+    overlay.appendChild(modal); document.body.appendChild(overlay);
+}
+
+function closeEditModal() {
+    const overlay = document.getElementById('edit-modal-overlay');
+    if(overlay) overlay.remove();
+}
+
+async function submitEdit(rowIndex) {
+    const btn = document.getElementById('save-edit-btn');
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الحفظ...';
+    btn.disabled = true;
+    
+    const newData = {
+        name: document.getElementById('edit-m-name').value, transNum: document.getElementById('edit-m-trans').value,
+        branch: document.getElementById('edit-m-branch').value, notes: document.getElementById('edit-m-notes').value,
+        missing: document.getElementById('edit-m-missing').value
+    };
+
+    try {
+        const result = await secureFetch({ action: 'edit_record', rowIndex: rowIndex, newData: newData });
+        if(result.success) { closeEditModal(); loadTransactionLog(); } 
+        else { alert("حدث خطأ أثناء التعديل."); btn.innerText = 'حفظ التعديلات'; btn.disabled = false; }
+    } catch (e) { alert("خطأ في الاتصال الأمني."); closeEditModal(); }
+}
+
+async function markCompleted(rowIndex) {
+    const btn = document.getElementById(`complete-btn-${rowIndex}`);
+    if(!btn) return;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; 
+    try {
+        const result = await secureFetch({ action: 'update_status', rowIndex: rowIndex });
+        if(result.success) {
+            document.getElementById(`status-${rowIndex}`).innerText = result.newStatus;
+            document.getElementById(`status-container-${rowIndex}`).innerHTML = `<button class="secondary-btn" style="padding: 5px; background: #7f8c8d; color: white; border: none; font-size:12px; margin-bottom: 5px; width: 100%; cursor: default;" disabled><i class="fa-solid fa-check-double"></i> مكتمل</button>`;
+            if (allTransactionsData[rowIndex - 2]) allTransactionsData[rowIndex - 2][17] = result.newStatus;
+        }
+    } catch (e) { alert("فشل أمني في تحديث الحالة."); btn.innerHTML = 'إتمام'; }
+}
+
 // ==========================================
 // الإحصائيات والتصدير والمذكرات
 // ==========================================
-
 async function loadStats() {
     secureFetch({ action: 'stats' }).then(result => {
         if (result.success) {
@@ -413,7 +458,6 @@ async function loadStats() {
     if(allTransactionsData.length === 0) loadTransactionLog();
 }
 
-// التصدير للإكسل (عملية تتم في المتصفح فقط ولا تحتاج اتصال آمن إضافي)
 function exportExcel(type) {
     if (!allTransactionsData || allTransactionsData.length === 0) {
         document.getElementById('report-results').innerHTML = '<p style="color:var(--accent-color);"><i class="fa-solid fa-spinner fa-spin"></i> جاري جلب البيانات من الأرشيف...</p>';
@@ -421,37 +465,31 @@ function exportExcel(type) {
         return;
     }
 
-    let exportData = allTransactionsData;
-    let excelHTML = '<table border="1">'; 
+    let wb = XLSX.utils.book_new(); 
+    let ws_data = []; 
     let fileName = "";
+    let sheetName = "";
 
     if (type === 'detailed') {
-        fileName = "تقرير_تفصيلي.xls";
-        excelHTML += `<tr>
-            <th style="background-color:#2b3a2f; color:white;">الاسم</th>
-            <th style="background-color:#2b3a2f; color:white;">رقم المعاملة</th>
-            <th style="background-color:#2b3a2f; color:white;">نوع المعاملة</th>
-            <th style="background-color:#2b3a2f; color:white;">الجهة</th>
-            <th style="background-color:#2b3a2f; color:white;">الحالة</th>
-        </tr>`;
-        exportData.forEach(row => {
-            excelHTML += `<tr>
-                <td>${row[10] || '-'}</td><td>${row[0] || '-'}</td>
-                <td>${row[4] || '-'}</td><td>${row[3] || '-'}</td><td>${row[17] || 'مستمرة'}</td>
-            </tr>`;
+        fileName = "سجل_الارشيف_التفصيلي.xlsx";
+        sheetName = "المعاملات";
+        ws_data.push(["الرقم", "الاسم", "رقم المعاملة", "الرقم العسكري", "نوع المعاملة", "الجهة", "رقم الهاتف", "موضوع المذكرة", "تاريخ الاستلام", "الحالة"]);
+        
+        allTransactionsData.forEach((row, index) => {
+            if(!row) return;
+            let cleanDate = row[1] || '-';
+            if (typeof cleanDate === 'string' && cleanDate.includes('T')) cleanDate = cleanDate.split('T')[0];
+            ws_data.push([
+                index + 1, row[10] || '-', row[0] || '-', row[8] || '-', row[4] || '-', row[3] || '-', row[15] || '-', row[19] || '-', cleanDate, row[17] || 'مستمرة'
+            ]);
         });
     } else if (type === 'stats') {
-        fileName = "تقرير_إحصائي.xls";
-        excelHTML += `<tr>
-            <th style="background-color:#2b3a2f; color:white;">الموضوع</th>
-            <th style="background-color:#2b3a2f; color:white;">الجهة</th>
-            <th style="background-color:#2b3a2f; color:white;">المكتملة</th>
-            <th style="background-color:#2b3a2f; color:white;">المستمرة</th>
-            <th style="background-color:#2b3a2f; color:white;">الإجمالي</th>
-        </tr>`;
+        fileName = "التقرير_الاحصائي_للجهات.xlsx";
+        sheetName = "إحصائيات";
+        ws_data.push(["نوع المعاملة / الموضوع", "الجهة", "المعاملات المكتملة", "المعاملات المستمرة", "إجمالي المعاملات"]);
         
         let grouped = {};
-        exportData.forEach(row => {
+        allTransactionsData.forEach(row => {
             if(!row) return;
             let typeKey = String(row[4] || "غير محدد");
             let branchKey = String(row[3] || "غير محدد");
@@ -465,36 +503,22 @@ function exportExcel(type) {
 
         for (let k in grouped) {
             let parts = k.split("|||");
-            excelHTML += `<tr>
-                <td>${parts[0]}</td><td>${parts[1]}</td>
-                <td style="color: green; font-weight: bold;">${grouped[k].completed}</td>
-                <td style="color: red; font-weight: bold;">${grouped[k].ongoing}</td>
-                <td style="background-color: #f0f0f0;"><strong>${grouped[k].total}</strong></td>
-            </tr>`;
+            ws_data.push([parts[0], parts[1], grouped[k].completed, grouped[k].ongoing, grouped[k].total]);
         }
     }
-    
-    excelHTML += '</table>';
-    document.getElementById('report-results').innerHTML = excelHTML.replace('<table border="1">', '<table class="report-table">');
 
-    let excelFile = `
-        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:x='urn:schemas-microsoft-com:office:excel' xmlns='http://www.w3.org/TR/REC-html40'>
-        <head><meta charset='utf-8'><style>body, table { direction: rtl; font-family: Arial, sans-serif; text-align: right; }</style></head>
-        <body>${excelHTML}</body></html>
-    `;
-    
-    let blob = new Blob([excelFile], { type: 'application/vnd.ms-excel' });
-    let url = URL.createObjectURL(blob);
-    let downloadLink = document.createElement("a");
-    downloadLink.href = url; downloadLink.download = fileName;
-    document.body.appendChild(downloadLink); downloadLink.click(); document.body.removeChild(downloadLink);
+    let ws = XLSX.utils.aoa_to_sheet(ws_data);
+    ws['!dir'] = 'rtl';
+    ws['!cols'] = ws_data[0].map(() => ({ wch: 22 })); 
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    XLSX.writeFile(wb, fileName); 
+    document.getElementById('report-results').innerHTML = `<p style="color: var(--success); font-weight: bold; padding: 15px; background: #e8f8f5; border-radius: 6px; text-align: center;"><i class="fa-solid fa-check-circle"></i> تم تصدير وتحميل ملف الإكسل ( ${fileName} ) بنجاح.</p>`;
 }
 
 async function refineMemo() {
     const text = document.getElementById('memo-body').value;
     if(!text) return alert('يرجى كتابة نص المذكرة أولاً.');
     document.getElementById('memo-loading').style.display = 'block';
-    
     try {
         const result = await secureFetch({ action: 'refine_memo', text: text });
         document.getElementById('memo-loading').style.display = 'none';
@@ -525,195 +549,14 @@ async function exportMemo() {
     } catch (e) { document.getElementById('memo-loading').style.display = 'none'; }
 }
 
-function filterLogTable() {
-    const input = document.getElementById("log-search-input").value.toLowerCase();
-    const table = document.querySelector("#log-results .report-table");
-    if (!table) return; 
-    
-    const trs = table.getElementsByTagName("tr");
-    for (let i = 1; i < trs.length; i++) {
-        const tds = trs[i].getElementsByTagName("td");
-        let rowContainsSearchTerm = false;
-        if (tds.length > 0) {
-            const nameCell = tds[0].textContent || tds[0].innerText;
-            const transNumCell = tds[2].textContent || tds[2].innerText;
-            if (nameCell.toLowerCase().includes(input) || transNumCell.toLowerCase().includes(input)) rowContainsSearchTerm = true;
-        }
-        trs[i].style.display = rowContainsSearchTerm ? "" : "none";
-    }
-}
-
 // ==========================================
-// وظائف التعديل والإتمام
+// غرفة المراسلة المشتركة 
 // ==========================================
-
-function openEditModal(rowIndex) {
-    const row = allTransactionsData[rowIndex - 2];
-    if(!row) return;
-
-    const overlay = document.createElement('div');
-    overlay.id = 'edit-modal-overlay';
-    overlay.style = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; justify-content:center; align-items:center; direction:rtl;';
-    
-    const modal = document.createElement('div');
-    modal.style = 'background:#fff; padding:25px; border-radius:10px; width:90%; max-width:450px; box-shadow:0 10px 30px rgba(0,0,0,0.2);';
-    
-    modal.innerHTML = `
-        <h3 style="margin-bottom:20px; color:var(--primary-color);"><i class="fa-solid fa-pen-to-square"></i> تعديل بيانات المعاملة</h3>
-        <div style="margin-bottom: 10px;"><label style="font-weight:bold; font-size:14px; color:#555;">الاسم:</label><input type="text" id="edit-m-name" value="${row[10] || ''}" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; margin-top:5px;"></div>
-        <div style="margin-bottom: 10px;"><label style="font-weight:bold; font-size:14px; color:#555;">رقم المعاملة:</label><input type="text" id="edit-m-trans" value="${row[0] || ''}" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; margin-top:5px;"></div>
-        <div style="margin-bottom: 10px;"><label style="font-weight:bold; font-size:14px; color:#555;">الجهة / الفرع:</label><input type="text" id="edit-m-branch" value="${row[3] || ''}" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; margin-top:5px;"></div>
-        <div style="margin-bottom: 10px;"><label style="font-weight:bold; font-size:14px; color:#c5a059;">الملاحظات (عند المسح):</label><input type="text" id="edit-m-notes" value="${row[18] || ''}" style="width:100%; padding:8px; border:1px solid #c5a059; border-radius:4px; margin-top:5px; background:#fff9e6;"></div>
-        <div style="margin-bottom: 15px;"><label style="font-weight:bold; font-size:14px; color:#b33939;">النواقص (من البحث):</label><input type="text" id="edit-m-missing" value="${row[20] || ''}" style="width:100%; padding:8px; border:1px solid #b33939; border-radius:4px; margin-top:5px; background:#ffeaea;"></div>
-        
-        <div style="display:flex; gap:10px; margin-top:20px;">
-            <button onclick="submitEdit(${rowIndex})" class="primary-btn" id="save-edit-btn" style="flex:1;">حفظ التعديلات</button>
-            <button onclick="closeEditModal()" class="secondary-btn" style="background:#e74c3c; color:white; flex:1; border:none;">إلغاء</button>
-        </div>
-    `;
-    
-    overlay.appendChild(modal); document.body.appendChild(overlay);
-}
-
-function closeEditModal() {
-    const overlay = document.getElementById('edit-modal-overlay');
-    if(overlay) overlay.remove();
-}
-
-async function submitEdit(rowIndex) {
-    const btn = document.getElementById('save-edit-btn');
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الحفظ...';
-    btn.disabled = true;
-    
-    const newData = {
-        name: document.getElementById('edit-m-name').value, transNum: document.getElementById('edit-m-trans').value,
-        branch: document.getElementById('edit-m-branch').value, notes: document.getElementById('edit-m-notes').value,
-        missing: document.getElementById('edit-m-missing').value
-    };
-
-    try {
-        const result = await secureFetch({ action: 'edit_record', rowIndex: rowIndex, newData: newData });
-        if(result.success) {
-            closeEditModal(); loadTransactionLog();
-        } else {
-            alert("حدث خطأ أثناء التعديل."); btn.innerText = 'حفظ التعديلات'; btn.disabled = false;
-        }
-    } catch (e) { alert("خطأ في الاتصال الأمني."); closeEditModal(); }
-}
-
-async function markCompleted(rowIndex) {
-    const btn = document.getElementById(`complete-btn-${rowIndex}`);
-    if(!btn) return;
-    
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; 
-    
-    try {
-        const result = await secureFetch({ action: 'update_status', rowIndex: rowIndex });
-        if(result.success) {
-            document.getElementById(`status-${rowIndex}`).innerText = result.newStatus;
-            const container = document.getElementById(`status-container-${rowIndex}`);
-            container.innerHTML = `<button class="secondary-btn" style="padding: 5px; background: #7f8c8d; color: white; border: none; font-size:12px; margin-bottom: 5px; width: 100%; cursor: default;" disabled><i class="fa-solid fa-check-double"></i> مكتمل</button>`;
-            if (allTransactionsData[rowIndex - 2]) allTransactionsData[rowIndex - 2][17] = result.newStatus;
-        }
-    } catch (e) { alert("فشل أمني في تحديث الحالة."); btn.innerHTML = 'إتمام'; }
-}
-// ==========================================
-// تصدير التقارير (إحصائي + تفصيلي) باستخدام SheetJS
-// ==========================================
-function exportExcel(type) {
-    if (!allTransactionsData || allTransactionsData.length === 0) {
-        document.getElementById('report-results').innerHTML = '<p style="color:var(--accent-color);"><i class="fa-solid fa-spinner fa-spin"></i> جاري جلب البيانات من الأرشيف... يرجى إعادة الضغط بعد ثوانٍ.</p>';
-        loadTransactionLog();
-        return;
-    }
-
-    let wb = XLSX.utils.book_new(); // إنشاء ملف إكسل جديد حقيقي
-    let ws_data = []; // مصفوفة البيانات
-    let fileName = "";
-    let sheetName = "";
-
-    // 1. إعداد التقرير التفصيلي
-    if (type === 'detailed') {
-        fileName = "سجل_الارشيف_التفصيلي.xlsx";
-        sheetName = "المعاملات";
-        
-        // عناوين الأعمدة (بشكل أكثر شمولية واحترافية)
-        ws_data.push(["الرقم", "الاسم", "رقم المعاملة", "الرقم العسكري", "نوع المعاملة", "الجهة", "رقم الهاتف", "موضوع المذكرة", "تاريخ الاستلام", "الحالة"]);
-        
-        // تعبئة البيانات
-        allTransactionsData.forEach((row, index) => {
-            if(!row) return;
-            // تنظيف التاريخ 
-            let cleanDate = row[1] || '-';
-            if (typeof cleanDate === 'string' && cleanDate.includes('T')) cleanDate = cleanDate.split('T')[0];
-
-            ws_data.push([
-                index + 1,             // التسلسل
-                row[10] || '-',        // الاسم
-                row[0] || '-',         // رقم المعاملة
-                row[8] || '-',         // الرقم العسكري
-                row[4] || '-',         // نوع المعاملة
-                row[3] || '-',         // الجهة
-                row[15] || '-',        // الهاتف
-                row[19] || '-',        // الموضوع
-                cleanDate,             // التاريخ
-                row[17] || 'مستمرة'    // الحالة
-            ]);
-        });
-    } 
-    // 2. إعداد التقرير الإحصائي
-    else if (type === 'stats') {
-        fileName = "التقرير_الاحصائي_للجهات.xlsx";
-        sheetName = "إحصائيات";
-        
-        // عناوين الأعمدة
-        ws_data.push(["نوع المعاملة / الموضوع", "الجهة", "المعاملات المكتملة", "المعاملات المستمرة", "إجمالي المعاملات"]);
-        
-        // تجميع وحساب البيانات
-        let grouped = {};
-        allTransactionsData.forEach(row => {
-            if(!row) return;
-            let typeKey = String(row[4] || "غير محدد");
-            let branchKey = String(row[3] || "غير محدد");
-            let status = String(row[17] || "مستمرة"); 
-            let key = typeKey + "|||" + branchKey;
-            
-            if (!grouped[key]) grouped[key] = { completed: 0, ongoing: 0, total: 0 };
-            grouped[key].total += 1;
-            
-            if (status.includes("مستمرة")) {
-                grouped[key].ongoing += 1;
-            } else {
-                grouped[key].completed += 1;
-            }
-        });
-
-        for (let k in grouped) {
-            let parts = k.split("|||");
-            ws_data.push([
-                parts[0],              // الموضوع
-                parts[1],              // الجهة
-                grouped[k].completed,  // المكتملة
-                grouped[k].ongoing,    // المستمرة
-                grouped[k].total       // الإجمالي
-            ]);
-        }
-    }
-
-    // 3. تحويل المصفوفة إلى ورقة إكسل (Worksheet)
-    let ws = XLSX.utils.aoa_to_sheet(ws_data);
-
-    // 4. ضبط اتجاه الشيت ليكون من اليمين لليسار (RTL - توافق تام مع العربية)
-    ws['!dir'] = 'rtl';
-
-    // 5. الضبط التلقائي لعرض الأعمدة لتظهر بشكل مرتب واحترافي
-    let wscols = ws_data[0].map(() => ({ wch: 22 })); // العرض الافتراضي 22 حرف
-    ws['!cols'] = wscols;
-
-    // 6. إضافة الورقة للملف وحفظه
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    XLSX.writeFile(wb, fileName); // تفعيل التحميل التلقائي للملف
-
-    // إظهار رسالة تأكيد في الشاشة
-    document.getElementById('report-results').innerHTML = `<p style="color: var(--success); font-weight: bold; padding: 15px; background: #e8f8f5; border-radius: 6px; text-align: center;"><i class="fa-solid fa-check-circle"></i> تم تصدير وتحميل ملف الإكسل ( ${fileName} ) بنجاح.</p>`;
+function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    if(!input.value.trim()) return;
+    const chatBox = document.getElementById('chat-messages');
+    chatBox.innerHTML += `<div style="background: #dcf8c6; padding: 10px; border-radius: 8px; max-width: 80%; align-self: flex-start;"><strong>أنت:</strong><br>${input.value}</div>`;
+    input.value = '';
+    chatBox.scrollTop = chatBox.scrollHeight;
 }
