@@ -560,3 +560,41 @@ async function markCompleted(rowIndex) {
         }
     } catch (e) { alert("فشل أمني في تحديث الحالة."); btn.innerHTML = 'إتمام'; }
 }
+async function importExcel(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    document.getElementById('import-status').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري قراءة الملف...';
+    
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            
+            // تحويل الإكسل إلى مصفوفة بيانات
+            const excelData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+            
+            if(excelData.length < 2) {
+                return document.getElementById('import-status').innerText = 'الملف فارغ أو لا يحتوي على بيانات.';
+            }
+
+            document.getElementById('import-status').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الرفع إلى قاعدة البيانات الآمنة...';
+            
+            // إرسال البيانات للسيرفر عبر الاتصال الآمن
+            const result = await secureFetch({ action: 'import_excel', data: excelData });
+            
+            if(result.success) {
+                document.getElementById('import-status').innerHTML = `<span style="color: green;"><i class="fa-solid fa-check"></i> تم استيراد ${result.count} صف بنجاح.</span>`;
+                loadTransactionLog(); // تحديث السجل
+            } else {
+                document.getElementById('import-status').innerText = 'خطأ أثناء الاستيراد: ' + result.message;
+            }
+        } catch(error) {
+            document.getElementById('import-status').innerText = 'حدث خطأ في قراءة الملف. تأكد من أنه بصيغة صحيحة.';
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
