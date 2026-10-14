@@ -231,6 +231,12 @@ async function saveEditedData() {
 // سجل المعاملات والبحث 
 // ==========================================
 
+// ==========================================
+// سجل المعاملات، البحث، وزر عرض المزيد
+// ==========================================
+
+let currentLogLimit = 5; // عدد السجلات الافتراضي الذي سيظهر
+
 async function loadTransactionLog() {
     document.getElementById('log-results').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري جلب السجل...';
     try {
@@ -238,109 +244,110 @@ async function loadTransactionLog() {
         
         if (result.success) {
             allTransactionsData = result.data; 
-            
-            let table = `<table class="report-table">
-                <tr>
-                    <th>رقم المعاملة</th><th>الرتبة</th><th>الرقم العسكري</th><th>الاسم</th>
-                    <th>الوحدة الرئيسية</th><th>الوحدة الفرعية</th><th>نوع المعاملة</th>
-                    <th>موضوع المذكرة</th><th>رقم الهاتف</th><th>المصدر</th>
-                    <th>المسلم</th><th>المستلم</th><th>الفرع</th><th>عدد المستفيدين</th>
-                    <th>تاريخ الاستلام</th><th style="color: #c5a059;">الملاحظات</th>
-                    <th style="color: #b33939;">النواقص</th><th>الحالة</th><th>إجراء</th>
-                </tr>`;
-            
-            result.data.forEach((row, index) => {
-                const rowIndex = index + 2; 
-                const status = row[17] || "مستمرة"; 
-                let cleanDate = row[1] || '-';
-                if (typeof cleanDate === 'string' && cleanDate.includes('T')) cleanDate = cleanDate.split('T')[0];
-                
-                const statusBtn = status.includes("مستمرة") 
-                    ? `<button id="complete-btn-${rowIndex}" onclick="markCompleted(${rowIndex})" class="primary-btn" style="padding: 5px; background: #27ae60; font-size:12px; margin-bottom: 5px; width: 100%;">إتمام</button>` 
-                    : `<button class="secondary-btn" style="padding: 5px; background: #7f8c8d; color: white; border: none; font-size:12px; margin-bottom: 5px; width: 100%; cursor: default;" disabled><i class="fa-solid fa-check-double"></i> مكتمل</button>`;
-                
-                const editBtn = `<button onclick="openEditModal(${rowIndex})" class="secondary-btn" style="padding: 5px; background: #2980b9; color: white; border: none; border-radius: 4px; font-size:12px; width: 100%; margin-bottom: 5px;">تعديل</button>`;
-                
-                // رابط المستند سيعمل الآن للمصرح لهم فقط
-                const docLink = row[13] ? `<a href="${row[13]}" target="_blank" class="secondary-btn" style="padding: 5px; background: #8e44ad; color: white; border: none; border-radius: 4px; font-size:12px; width: 100%; text-decoration:none; display:inline-block; text-align:center;">المستند</a>` : '-';
-
-                table += `<tr>
-                    <td>${row[0] || '-'}</td><td>${row[9] || '-'}</td><td>${row[8] || '-'}</td>
-                    <td><strong>${row[10] || '-'}</strong></td><td>${row[11] || '-'}</td>
-                    <td>${row[12] || '-'}</td><td>${row[4] || '-'}</td><td>${row[19] || '-'}</td>
-                    <td>${row[15] || '-'}</td><td>${row[5] || '-'}</td><td>${row[7] || '-'}</td>
-                    <td>${row[6] || '-'}</td><td>${row[3] || '-'}</td><td>${row[2] || '-'}</td>
-                    <td>${cleanDate}</td><td style="background-color: #fff9e6;">${row[18] || '-'}</td>
-                    <td style="background-color: #ffeaea; color: #b33939;">${row[20] || '-'}</td>
-                    <td id="status-${rowIndex}" style="font-weight:bold;">${status}</td>
-                    <td style="min-width: 80px;">
-                        <div id="status-container-${rowIndex}">${statusBtn}</div>
-                        ${editBtn} ${docLink}
-                    </td>
-                </tr>`;
-            });
-            
-            table += `</table>`;
-            document.getElementById('log-results').innerHTML = table;
+            currentLogLimit = 5; // إعادة الضبط لـ 5 عند كل مرة نفتح فيها السجل
+            renderLogTable();    // استدعاء دالة الرسم
         }
     } catch (e) { 
         document.getElementById('log-results').innerHTML = 'خطأ أمني أو انقطاع اتصال.'; 
     }
 }
 
-async function searchRecords() {
-    const query = document.getElementById('search-query').value;
-    if (!query) return;
-    document.getElementById('search-loading').style.display = 'block';
-    document.getElementById('search-results').innerHTML = '';
+// دالة جديدة تقوم برسم الجدول بالعدد المطلوب
+function renderLogTable(dataToRender = allTransactionsData, isSearch = false) {
+    if (!dataToRender || dataToRender.length === 0) {
+        document.getElementById('log-results').innerHTML = '<p style="text-align:center; padding:20px;">لا توجد بيانات لعرضها.</p>';
+        return;
+    }
 
-    try {
-        const result = await secureFetch({ action: 'search', query: query });
-        document.getElementById('search-loading').style.display = 'none';
+    // إذا كنا نبحث سنعرض جميع النتائج المطابقة، وإلا نعرض العدد المحدد فقط
+    let limit = isSearch ? dataToRender.length : currentLogLimit;
 
-        if (result.success && result.results.length > 0) {
-            let html = '';
-            result.results.forEach(record => {
-                const encodedRecord = encodeURIComponent(JSON.stringify(record));
-                html += `
-                <div class="result-card">
-                    <h4><i class="fa-solid fa-user-shield"></i> ${record['الاسم']}</h4>
-                    <p><strong>الجهة/الموضوع:</strong> ${record['موضوع المذكرة'] || record['نوع المعاملة']}</p>
-                    <p><strong>الرقم العسكري:</strong> ${record['الرقم العسكري']}</p>
-                    <p><strong>رقم الهاتف:</strong> ${record['الهاتف'] || 'غير مسجل'}</p>
-                    
-                    <div style="margin-top: 10px;">
-                        <input type="text" id="note-${record.rowIndex}" placeholder="اكتب النواقص المطلوبة هنا..." class="input-group" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; border-right: 3px solid #b33939;">
-                    </div>
-
-                    <div style="display:flex; gap:10px; margin-top:10px;">
-                        <button onclick="shareSearchViaWhatsApp('${encodedRecord}', ${record.rowIndex})" class="whatsapp-btn" style="margin-top:0; padding:8px;"><i class="fa-brands fa-whatsapp"></i> إرسال النواقص</button>
-                        <a href="${record['رابط الصورة']}" target="_blank" class="secondary-btn" style="text-align:center; text-decoration:none; padding:8px;">المستند</a>
-                    </div>
-                </div>`;
-            });
-            document.getElementById('search-results').innerHTML = html;
-        } else { document.getElementById('search-results').innerHTML = '<p>لا توجد نتائج.</p>'; }
-    } catch (error) { document.getElementById('search-loading').style.display = 'none'; }
-}
-
-async function shareSearchViaWhatsApp(encodedData, rowIndex) {
-    const data = JSON.parse(decodeURIComponent(encodedData));
-    const missing = document.getElementById(`note-${rowIndex}`).value;
+    let table = `<table class="report-table">
+        <tr>
+            <th>رقم المعاملة</th><th>الرتبة</th><th>الرقم العسكري</th><th>الاسم</th>
+            <th>الوحدة الرئيسية</th><th>الوحدة الفرعية</th><th>نوع المعاملة</th>
+            <th>موضوع المذكرة</th><th>رقم الهاتف</th><th>المصدر</th>
+            <th>المسلم</th><th>المستلم</th><th>الفرع</th><th>عدد المستفيدين</th>
+            <th>تاريخ الاستلام</th><th style="color: #c5a059;">الملاحظات</th>
+            <th style="color: #b33939;">النواقص</th><th>الحالة</th><th>إجراء</th>
+        </tr>`;
     
-    // إرسال النواقص محلياً بشكل آمن
-    if(missing) secureFetch({ action: 'update_notes', rowIndex: rowIndex, notes: missing });
+    for (let i = 0; i < dataToRender.length; i++) {
+        if (i >= limit) break; // التوقف إذا وصلنا لـ 5 سجلات (أو الحد الحالي)
+        
+        const row = dataToRender[i];
+        
+        // جلب الفهرس الأصلي للحفاظ على عمل أزرار الإتمام والتعديل بشكل صحيح
+        const originalIndex = allTransactionsData.indexOf(row);
+        const rowIndex = originalIndex + 2; 
 
-    let text = `*بيانات المعاملة*\n===================\n`;
-    text += `*الاسم:* ${data['الاسم'] || 'غير متوفر'}\n`;
-    text += `*رقم المعاملة:* ${data['رقم المعاملة'] || 'غير متوفر'}\n`;
-    text += `*النوع/الموضوع:* ${data['نوع المعاملة'] || 'غير متوفر'}\n`;
-    if(data['الهاتف']) text += `*هاتف:* ${data['الهاتف']}\n`;
-    if(missing) text += `\n*النواقص المطلوبة:*\n${missing}\n`;
+        const status = row[17] || "مستمرة"; 
+        let cleanDate = row[1] || '-';
+        if (typeof cleanDate === 'string' && cleanDate.includes('T')) cleanDate = cleanDate.split('T')[0];
+        
+        const statusBtn = status.includes("مستمرة") 
+            ? `<button id="complete-btn-${rowIndex}" onclick="markCompleted(${rowIndex})" class="primary-btn" style="padding: 5px; background: #27ae60; font-size:12px; margin-bottom: 5px; width: 100%;">إتمام</button>` 
+            : `<button class="secondary-btn" style="padding: 5px; background: #7f8c8d; color: white; border: none; font-size:12px; margin-bottom: 5px; width: 100%; cursor: default;" disabled><i class="fa-solid fa-check-double"></i> مكتمل</button>`;
+        
+        const editBtn = `<button onclick="openEditModal(${rowIndex})" class="secondary-btn" style="padding: 5px; background: #2980b9; color: white; border: none; border-radius: 4px; font-size:12px; width: 100%; margin-bottom: 5px;">تعديل</button>`;
+        
+        const docLink = row[13] ? `<a href="${row[13]}" target="_blank" class="secondary-btn" style="padding: 5px; background: #8e44ad; color: white; border: none; border-radius: 4px; font-size:12px; width: 100%; text-decoration:none; display:inline-block; text-align:center;">المستند</a>` : '-';
 
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+        table += `<tr>
+            <td>${row[0] || '-'}</td><td>${row[9] || '-'}</td><td>${row[8] || '-'}</td>
+            <td><strong>${row[10] || '-'}</strong></td><td>${row[11] || '-'}</td>
+            <td>${row[12] || '-'}</td><td>${row[4] || '-'}</td><td>${row[19] || '-'}</td>
+            <td>${row[15] || '-'}</td><td>${row[5] || '-'}</td><td>${row[7] || '-'}</td>
+            <td>${row[6] || '-'}</td><td>${row[3] || '-'}</td><td>${row[2] || '-'}</td>
+            <td>${cleanDate}</td><td style="background-color: #fff9e6;">${row[18] || '-'}</td>
+            <td style="background-color: #ffeaea; color: #b33939;">${row[20] || '-'}</td>
+            <td id="status-${rowIndex}" style="font-weight:bold;">${status}</td>
+            <td style="min-width: 80px;">
+                <div id="status-container-${rowIndex}">${statusBtn}</div>
+                ${editBtn} ${docLink}
+            </td>
+        </tr>`;
+    }
+    
+    table += `</table>`;
+
+    // 📍 إضافة زر عرض المزيد تحت الجدول إذا كانت هناك بيانات إضافية
+    if (!isSearch && dataToRender.length > limit) {
+        table += `
+        <div style="text-align: center; margin-top: 20px;">
+            <button onclick="showMoreLog()" class="secondary-btn" style="background-color: var(--primary-color); color: white; width: auto; padding: 10px 40px; border-radius: 20px;">
+                <i class="fa-solid fa-angle-down"></i> عرض المزيد (${dataToRender.length - limit} معاملة متبقية)
+            </button>
+        </div>`;
+    }
+
+    document.getElementById('log-results').innerHTML = table;
 }
 
+// دالة تعمل عند الضغط على زر "عرض المزيد"
+function showMoreLog() {
+    currentLogLimit += 10; // تزيد 10 صفوف إضافية في كل ضغطة (يمكنك تعديلها)
+    renderLogTable();      // إعادة رسم الجدول بالحد الجديد
+}
+
+// تم تعديل دالة البحث لتبحث في جميع البيانات (الظاهرة والمخفية)
+function filterLogTable() {
+    const input = document.getElementById("log-search-input").value.toLowerCase();
+    
+    if (input.trim() === '') {
+        renderLogTable(); // إذا مسح المستخدم مربع البحث، يرجع الجدول لوضعه الافتراضي (5 صفوف)
+        return;
+    }
+
+    // فلترة السجلات ومطابقة الأسماء أو أرقام المعاملات
+    let filteredData = allTransactionsData.filter(row => {
+        const nameCell = (row[10] || '').toString().toLowerCase();
+        const transNumCell = (row[0] || '').toString().toLowerCase();
+        return nameCell.includes(input) || transNumCell.includes(input);
+    });
+
+    renderLogTable(filteredData, true); // إرسال true ليظهر كل النتائج المطابقة للبحث بدون تقييد العدد
+}
 // ==========================================
 // الإحصائيات والتصدير والمذكرات
 // ==========================================
