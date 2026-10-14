@@ -6,6 +6,7 @@
     <title>نظام الأرشفة المحلية </title>
    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
        <link rel="stylesheet" href="style.css?v=2">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -99,7 +100,14 @@
                 <div id="log-results" class="table-responsive"></div>
             </div>
         </div>
-
+<div style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 6px; border: 1px dashed var(--primary-color);">
+    <h4 style="color: var(--primary-color); margin-bottom: 10px;"><i class="fa-solid fa-file-excel"></i> استيراد بيانات من ملف Excel</h4>
+    <input type="file" id="excel-upload" accept=".xlsx, .xls" style="display: none;" onchange="importExcel(event)">
+    <label for="excel-upload" class="primary-btn" style="display: inline-block; cursor: pointer; text-align: center; background-color: #27ae60;">
+        <i class="fa-solid fa-upload"></i> اختر ملف الإكسل للاستيراد
+    </label>
+    <p id="import-status" style="margin-top: 10px; font-weight: bold; color: var(--accent-color);"></p>
+</div>
         <!-- 3. قسم البحث -->
         <div id="search-tab" class="tab-content">
             <div class="card">
