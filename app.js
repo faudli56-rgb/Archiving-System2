@@ -228,10 +228,6 @@ async function saveEditedData() {
 }
 
 // ==========================================
-// سجل المعاملات والبحث 
-// ==========================================
-
-// ==========================================
 // سجل المعاملات، البحث، وزر عرض المزيد
 // ==========================================
 
@@ -347,6 +343,60 @@ function filterLogTable() {
     });
 
     renderLogTable(filteredData, true); // إرسال true ليظهر كل النتائج المطابقة للبحث بدون تقييد العدد
+}
+// ==========================================
+// البحث والأرشيف
+// ==========================================
+async function searchRecords() {
+    const query = document.getElementById('search-query').value;
+    if (!query) return;
+    document.getElementById('search-loading').style.display = 'block';
+    document.getElementById('search-results').innerHTML = '';
+
+    try {
+        const result = await secureFetch({ action: 'search', query: query });
+        document.getElementById('search-loading').style.display = 'none';
+
+        if (result.success && result.results.length > 0) {
+            let html = '';
+            result.results.forEach(record => {
+                const encodedRecord = encodeURIComponent(JSON.stringify(record));
+                html += `
+                <div class="result-card">
+                    <h4><i class="fa-solid fa-user-shield"></i> ${record['الاسم']}</h4>
+                    <p><strong>الجهة/الموضوع:</strong> ${record['موضوع المذكرة'] || record['نوع المعاملة']}</p>
+                    <p><strong>الرقم العسكري:</strong> ${record['الرقم العسكري']}</p>
+                    <p><strong>رقم الهاتف:</strong> ${record['الهاتف'] || 'غير مسجل'}</p>
+                    
+                    <div style="margin-top: 10px;">
+                        <input type="text" id="note-${record.rowIndex}" placeholder="اكتب النواقص المطلوبة هنا..." class="input-group" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; border-right: 3px solid #b33939;">
+                    </div>
+
+                    <div style="display:flex; gap:10px; margin-top:10px;">
+                        <button onclick="shareSearchViaWhatsApp('${encodedRecord}', ${record.rowIndex})" class="whatsapp-btn" style="margin-top:0; padding:8px;"><i class="fa-brands fa-whatsapp"></i> إرسال النواقص</button>
+                        <a href="${record['رابط الصورة']}" target="_blank" class="secondary-btn" style="text-align:center; text-decoration:none; padding:8px;">المستند</a>
+                    </div>
+                </div>`;
+            });
+            document.getElementById('search-results').innerHTML = html;
+        } else { document.getElementById('search-results').innerHTML = '<p>لا توجد نتائج.</p>'; }
+    } catch (error) { document.getElementById('search-loading').style.display = 'none'; }
+}
+
+async function shareSearchViaWhatsApp(encodedData, rowIndex) {
+    const data = JSON.parse(decodeURIComponent(encodedData));
+    const missing = document.getElementById(`note-${rowIndex}`).value;
+    
+    if(missing) secureFetch({ action: 'update_notes', rowIndex: rowIndex, notes: missing });
+
+    let text = `*بيانات المعاملة*\n===================\n`;
+    text += `*الاسم:* ${data['الاسم'] || 'غير متوفر'}\n`;
+    text += `*رقم المعاملة:* ${data['رقم المعاملة'] || 'غير متوفر'}\n`;
+    text += `*النوع/الموضوع:* ${data['نوع المعاملة'] || 'غير متوفر'}\n`;
+    if(data['الهاتف']) text += `*هاتف:* ${data['الهاتف']}\n`;
+    if(missing) text += `\n*النواقص المطلوبة:*\n${missing}\n`;
+
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
 }
 // ==========================================
 // الإحصائيات والتصدير والمذكرات
