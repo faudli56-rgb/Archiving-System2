@@ -59,17 +59,26 @@
             <div class="card">
                 <h3><i class="fa-solid fa-file-signature"></i> إدخال معاملة جديدة</h3>
                 
-                <!-- 📍 تم نقل كود استيراد الإكسل إلى هنا -->
-                <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border: 1px dashed var(--primary-color);">
-                    <h4 style="color: var(--primary-color); margin-bottom: 10px;"><i class="fa-solid fa-file-excel"></i> استيراد من ملف Excel (دفعة واحدة)</h4>
-                    <input type="file" id="excel-upload" accept=".xlsx, .xls" style="display: none;" onchange="importExcel(event)">
-                    <label for="excel-upload" class="secondary-btn" style="display: inline-block; cursor: pointer; text-align: center; background-color: #27ae60; color: white; border: none;">
-                        <i class="fa-solid fa-upload"></i> اختر ملف الإكسل للاستيراد
-                    </label>
-                    <p id="import-status" style="margin-top: 10px; font-weight: bold; color: var(--accent-color);"></p>
-                </div>
-                <!-- ========================================== -->
-
+                <!-- قسم استيراد وتصدير النماذج -->
+<div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border: 1px dashed var(--primary-color);">
+    <h4 style="color: var(--primary-color); margin-bottom: 10px;"><i class="fa-solid fa-file-excel"></i> استيراد بيانات (دفعة واحدة)</h4>
+    
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <!-- زر الاستيراد -->
+        <input type="file" id="excel-upload" accept=".xlsx, .xls" style="display: none;" onchange="importExcel(event)">
+        <label for="excel-upload" class="secondary-btn" style="flex: 1; cursor: pointer; text-align: center; background-color: #27ae60; color: white; border: none; padding: 10px;">
+            <i class="fa-solid fa-upload"></i> استيراد السجلات
+        </label>
+        
+        <!-- زر تحميل النموذج الفارغ -->
+        <button onclick="exportTemplate()" class="secondary-btn" style="flex: 1; cursor: pointer; text-align: center; background-color: #2980b9; color: white; border: none; padding: 10px;">
+            <i class="fa-solid fa-download"></i> تحميل نموذج فارغ
+        </button>
+    </div>
+    
+    <p id="import-status" style="margin-top: 10px; font-weight: bold; color: var(--accent-color);"></p>
+</div>
+<!-- ========================================== -->
                 <div class="upload-area">
                    <input type="file" id="document-image" accept="image/*" onchange="previewImage(event)">
                     <label for="document-image" class="upload-label">
