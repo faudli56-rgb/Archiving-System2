@@ -560,41 +560,103 @@ async function markCompleted(rowIndex) {
         }
     } catch (e) { alert("فشل أمني في تحديث الحالة."); btn.innerHTML = 'إتمام'; }
 }
-async function importExcel(event) {
-    const file = event.target.files[0];
-    if (!file) return;
+// ==========================================
+// تصدير التقارير (إحصائي + تفصيلي) باستخدام SheetJS
+// ==========================================
+function exportExcel(type) {
+    if (!allTransactionsData || allTransactionsData.length === 0) {
+        document.getElementById('report-results').innerHTML = '<p style="color:var(--accent-color);"><i class="fa-solid fa-spinner fa-spin"></i> جاري جلب البيانات من الأرشيف... يرجى إعادة الضغط بعد ثوانٍ.</p>';
+        loadTransactionLog();
+        return;
+    }
 
-    document.getElementById('import-status').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري قراءة الملف...';
-    
-    const reader = new FileReader();
-    reader.onload = async function(e) {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, {type: 'array'});
-            const firstSheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[firstSheetName];
-            
-            // تحويل الإكسل إلى مصفوفة بيانات
-            const excelData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
-            
-            if(excelData.length < 2) {
-                return document.getElementById('import-status').innerText = 'الملف فارغ أو لا يحتوي على بيانات.';
-            }
+    let wb = XLSX.utils.book_new(); // إنشاء ملف إكسل جديد حقيقي
+    let ws_data = []; // مصفوفة البيانات
+    let fileName = "";
+    let sheetName = "";
 
-            document.getElementById('import-status').innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الرفع إلى قاعدة البيانات الآمنة...';
+    // 1. إعداد التقرير التفصيلي
+    if (type === 'detailed') {
+        fileName = "سجل_الارشيف_التفصيلي.xlsx";
+        sheetName = "المعاملات";
+        
+        // عناوين الأعمدة (بشكل أكثر شمولية واحترافية)
+        ws_data.push(["الرقم", "الاسم", "رقم المعاملة", "الرقم العسكري", "نوع المعاملة", "الجهة", "رقم الهاتف", "موضوع المذكرة", "تاريخ الاستلام", "الحالة"]);
+        
+        // تعبئة البيانات
+        allTransactionsData.forEach((row, index) => {
+            if(!row) return;
+            // تنظيف التاريخ 
+            let cleanDate = row[1] || '-';
+            if (typeof cleanDate === 'string' && cleanDate.includes('T')) cleanDate = cleanDate.split('T')[0];
+
+            ws_data.push([
+                index + 1,             // التسلسل
+                row[10] || '-',        // الاسم
+                row[0] || '-',         // رقم المعاملة
+                row[8] || '-',         // الرقم العسكري
+                row[4] || '-',         // نوع المعاملة
+                row[3] || '-',         // الجهة
+                row[15] || '-',        // الهاتف
+                row[19] || '-',        // الموضوع
+                cleanDate,             // التاريخ
+                row[17] || 'مستمرة'    // الحالة
+            ]);
+        });
+    } 
+    // 2. إعداد التقرير الإحصائي
+    else if (type === 'stats') {
+        fileName = "التقرير_الاحصائي_للجهات.xlsx";
+        sheetName = "إحصائيات";
+        
+        // عناوين الأعمدة
+        ws_data.push(["نوع المعاملة / الموضوع", "الجهة", "المعاملات المكتملة", "المعاملات المستمرة", "إجمالي المعاملات"]);
+        
+        // تجميع وحساب البيانات
+        let grouped = {};
+        allTransactionsData.forEach(row => {
+            if(!row) return;
+            let typeKey = String(row[4] || "غير محدد");
+            let branchKey = String(row[3] || "غير محدد");
+            let status = String(row[17] || "مستمرة"); 
+            let key = typeKey + "|||" + branchKey;
             
-            // إرسال البيانات للسيرفر عبر الاتصال الآمن
-            const result = await secureFetch({ action: 'import_excel', data: excelData });
+            if (!grouped[key]) grouped[key] = { completed: 0, ongoing: 0, total: 0 };
+            grouped[key].total += 1;
             
-            if(result.success) {
-                document.getElementById('import-status').innerHTML = `<span style="color: green;"><i class="fa-solid fa-check"></i> تم استيراد ${result.count} صف بنجاح.</span>`;
-                loadTransactionLog(); // تحديث السجل
+            if (status.includes("مستمرة")) {
+                grouped[key].ongoing += 1;
             } else {
-                document.getElementById('import-status').innerText = 'خطأ أثناء الاستيراد: ' + result.message;
+                grouped[key].completed += 1;
             }
-        } catch(error) {
-            document.getElementById('import-status').innerText = 'حدث خطأ في قراءة الملف. تأكد من أنه بصيغة صحيحة.';
+        });
+
+        for (let k in grouped) {
+            let parts = k.split("|||");
+            ws_data.push([
+                parts[0],              // الموضوع
+                parts[1],              // الجهة
+                grouped[k].completed,  // المكتملة
+                grouped[k].ongoing,    // المستمرة
+                grouped[k].total       // الإجمالي
+            ]);
         }
-    };
-    reader.readAsArrayBuffer(file);
+    }
+
+    // 3. تحويل المصفوفة إلى ورقة إكسل (Worksheet)
+    let ws = XLSX.utils.aoa_to_sheet(ws_data);
+
+    // 4. ضبط اتجاه الشيت ليكون من اليمين لليسار (RTL - توافق تام مع العربية)
+    ws['!dir'] = 'rtl';
+
+    // 5. الضبط التلقائي لعرض الأعمدة لتظهر بشكل مرتب واحترافي
+    let wscols = ws_data[0].map(() => ({ wch: 22 })); // العرض الافتراضي 22 حرف
+    ws['!cols'] = wscols;
+
+    // 6. إضافة الورقة للملف وحفظه
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    XLSX.writeFile(wb, fileName); // تفعيل التحميل التلقائي للملف
+
+    // إظهار رسالة تأكيد في الشاشة
+    document.getElementById('report-results').innerHTML = `<p style="color: var(--success); font-weight: bold; padding: 15px; background: #e8f8f5; border-radius: 6px; text-align: center;"><i class="fa-solid fa-check-circle"></i> تم تصدير وتحميل ملف الإكسل ( ${fileName} ) بنجاح.</p>`;
 }
