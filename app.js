@@ -82,6 +82,7 @@ function showTab(tabId) {
     
     if (tabId === 'stats-tab') loadStats();
     if (tabId === 'log-tab') loadTransactionLog(); 
+    if (tabId === 'settings-tab') loadUsers();
 }
 
 // ==========================================
@@ -587,4 +588,103 @@ function exportTemplate() {
     
     XLSX.utils.book_append_sheet(wb, ws, "نموذج_فارغ");
     XLSX.writeFile(wb, "نموذج_استيراد_معاملات.xlsx");
+}
+function applyPermissions() {
+    const role = sessionStorage.getItem('user_role');
+    const memoBtn = document.getElementById('nav-memo');
+    const settingsBtn = document.getElementById('nav-settings'); // زر الإعدادات
+    
+    if (role !== 'مدير النظام') {
+        if(memoBtn) memoBtn.style.display = 'none';
+        if(settingsBtn) settingsBtn.style.display = 'none'; // إخفاء عن المندوب
+        
+        // إرجاع المندوب للشاشة الرئيسية إذا حاول التلاعب وفتح الأقسام المخفية
+        if(document.getElementById('memo-tab').classList.contains('active-tab') || 
+           document.getElementById('settings-tab').classList.contains('active-tab')) {
+            showTab('scan-tab'); 
+        }
+    } else {
+        if(memoBtn) memoBtn.style.display = 'inline-block';
+        if(settingsBtn) settingsBtn.style.display = 'inline-block'; // إظهار للمدير
+    }
+}
+// ==========================================
+// ⚙️ إدارة المستخدمين من الواجهة (للمدير فقط)
+// ==========================================
+async function loadUsers() {
+    document.getElementById('users-loading').style.display = 'block';
+    document.getElementById('users-list').innerHTML = '';
+    try {
+        const result = await secureFetch({ action: 'get_users' });
+        document.getElementById('users-loading').style.display = 'none';
+        if(result.success) {
+            let table = `<table class="report-table">
+                <tr><th>الرقم</th><th>اسم المستخدم</th><th>الصلاحية</th><th>تغيير الصلاحية</th><th>حذف</th></tr>`;
+            result.users.forEach((u, index) => {
+                const rIndex = index + 2; // رقم الصف في جوجل شيت
+                table += `<tr>
+                    <td>${index + 1}</td>
+                    <td><strong>${u.username}</strong></td>
+                    <td>${u.role}</td>
+                    <td>
+                        <select onchange="changeUserRole(${rIndex}, this.value)" style="padding:5px; border-radius:4px; border: 1px solid #ccc;">
+                            <option value="مندوب" ${u.role !== 'مدير النظام' ? 'selected' : ''}>مندوب</option>
+                            <option value="مدير النظام" ${u.role === 'مدير النظام' ? 'selected' : ''}>مدير النظام</option>
+                        </select>
+                    </td>
+                    <td>
+                        <button onclick="deleteUser(${rIndex}, '${u.username}')" class="secondary-btn" style="background:#e74c3c; color:white; padding:5px 15px; border:none;">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>`;
+            });
+            table += `</table>`;
+            document.getElementById('users-list').innerHTML = table;
+        }
+    } catch(e) { document.getElementById('users-loading').style.display = 'none'; }
+}
+
+async function addUser() {
+    const username = document.getElementById('new-username').value.trim();
+    const password = document.getElementById('new-password').value.trim();
+    const role = document.getElementById('new-role').value;
+    const msg = document.getElementById('user-msg');
+    
+    if(!username || !password) return msg.innerText = "يرجى تعبئة اسم المستخدم وكلمة المرور.";
+    if(password.length < 4) return msg.innerText = "كلمة المرور يجب أن تكون 4 رموز على الأقل.";
+    
+    msg.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري إضافة المستخدم وتشفير الباسورد...';
+    
+    try {
+        const result = await secureFetch({ action: 'add_user', newUsername: username, newPassword: password, newRole: role });
+        if(result.success) {
+            msg.style.color = "green";
+            msg.innerHTML = `<i class="fa-solid fa-check"></i> تم إضافة المستخدم بنجاح.`;
+            document.getElementById('new-username').value = '';
+            document.getElementById('new-password').value = '';
+            loadUsers();
+        } else {
+            msg.style.color = "red";
+            msg.innerText = result.message;
+        }
+    } catch(e) { msg.style.color = "red"; msg.innerText = "حدث خطأ في الاتصال."; }
+}
+
+async function changeUserRole(rowIndex, newRole) {
+    if(!confirm("هل أنت متأكد من تعديل صلاحية هذا المستخدم؟")) return loadUsers();
+    try {
+        const result = await secureFetch({ action: 'change_user_role', rowIndex: rowIndex, newRole: newRole });
+        if(result.success) loadUsers();
+        else alert("خطأ: " + result.message);
+    } catch(e) { alert("حدث خطأ."); }
+}
+
+async function deleteUser(rowIndex, username) {
+    if(!confirm(`هل أنت متأكد من حذف المستخدم ( ${username} ) نهائياً؟ لا يمكن التراجع عن هذا الإجراء!`)) return;
+    try {
+        const result = await secureFetch({ action: 'delete_user', rowIndex: rowIndex });
+        if(result.success) loadUsers();
+        else alert("خطأ: " + result.message);
+    } catch(e) { alert("حدث خطأ."); }
 }
