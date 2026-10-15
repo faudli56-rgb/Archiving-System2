@@ -48,9 +48,20 @@ async function login() {
     try {
         const result = await secureFetch({ action: 'login', username: user, password: pass });
         if (result.success) { 
+            // 1. حفظ توكن الجلسة الأساسي
             sessionStorage.setItem('military_auth_token', result.token);
+            
+            // 2. حفظ الصلاحية والأقسام المسموحة (الأسطر الجديدة التي بحثت عنها)
+            sessionStorage.setItem('user_role', result.role);
+            sessionStorage.setItem('allowed_tabs', result.allowedTabs);
+            
             errorMsg.innerText = ""; 
             showScreen('app-section'); 
+            
+            // 3. تطبيق الصلاحيات وإخفاء/إظهار الأقسام فور تسجيل الدخول
+            if (typeof applyPermissions === 'function') {
+                applyPermissions(); 
+            }
         } 
         else errorMsg.innerText = result.message;
     } catch (error) { errorMsg.innerText = "خطأ في الاتصال أو رفض أمني."; }
@@ -591,21 +602,47 @@ function exportTemplate() {
 }
 function applyPermissions() {
     const role = sessionStorage.getItem('user_role');
-    const memoBtn = document.getElementById('nav-memo');
-    const settingsBtn = document.getElementById('nav-settings'); // زر الإعدادات
-    
-    if (role !== 'مدير النظام') {
-        if(memoBtn) memoBtn.style.display = 'none';
-        if(settingsBtn) settingsBtn.style.display = 'none'; // إخفاء عن المندوب
-        
-        // إرجاع المندوب للشاشة الرئيسية إذا حاول التلاعب وفتح الأقسام المخفية
-        if(document.getElementById('memo-tab').classList.contains('active-tab') || 
-           document.getElementById('settings-tab').classList.contains('active-tab')) {
-            showTab('scan-tab'); 
-        }
+    const allowedStr = sessionStorage.getItem('allowed_tabs') || "";
+    const allowed = allowedStr.split(',');
+
+    // قائمة بجميع الأقسام وأزرارها
+    const allTabs = [
+        { nav: 'nav-scan', tab: 'scan-tab' },
+        { nav: 'nav-log', tab: 'log-tab' },
+        { nav: 'nav-search', tab: 'search-tab' },
+        { nav: 'nav-chat', tab: 'chat-tab' },
+        { nav: 'nav-stats', tab: 'stats-tab' },
+        { nav: 'nav-memo', tab: 'memo-tab' }
+    ];
+
+    const settingsBtn = document.getElementById('nav-settings');
+
+    if (role === 'مدير النظام') {
+        // إظهار كل شيء للمدير
+        allTabs.forEach(t => { if(document.getElementById(t.nav)) document.getElementById(t.nav).style.display = 'inline-block'; });
+        if(settingsBtn) settingsBtn.style.display = 'inline-block';
     } else {
-        if(memoBtn) memoBtn.style.display = 'inline-block';
-        if(settingsBtn) settingsBtn.style.display = 'inline-block'; // إظهار للمدير
+        // إخفاء الإعدادات للمندوب
+        if(settingsBtn) settingsBtn.style.display = 'none';
+        if(document.getElementById('settings-tab').classList.contains('active-tab')) showTab('scan-tab');
+
+        // إخفاء أو إظهار حسب القائمة المسموحة للمندوب
+        let firstAllowedTab = null;
+        allTabs.forEach(t => {
+            const btn = document.getElementById(t.nav);
+            if (btn) {
+                if (allowed.includes(t.tab)) {
+                    btn.style.display = 'inline-block';
+                    if(!firstAllowedTab) firstAllowedTab = t.tab;
+                } else {
+                    btn.style.display = 'none';
+                    // إذا كان المندوب فاتح شاشة تم إخفاؤها، نخرجه منها
+                    if(document.getElementById(t.tab).classList.contains('active-tab')) {
+                        if(firstAllowedTab) showTab(firstAllowedTab);
+                    }
+                }
+            }
+        });
     }
 }
 // ==========================================
@@ -621,25 +658,25 @@ async function loadUsers() {
             let table = `<table class="report-table">
                 <tr><th>الرقم</th><th>اسم المستخدم</th><th>الصلاحية</th><th>تغيير الصلاحية</th><th>حذف</th></tr>`;
             result.users.forEach((u, index) => {
-                const rIndex = index + 2; // رقم الصف في جوجل شيت
+                const rIndex = index + 2; 
                 table += `<tr>
                     <td>${index + 1}</td>
                     <td><strong>${u.username}</strong></td>
                     <td>${u.role}</td>
                     <td>
-                        <select onchange="changeUserRole(${rIndex}, this.value)" style="padding:5px; border-radius:4px; border: 1px solid #ccc;">
+                        <select onchange="changeUserRole(${rIndex}, this.value)" style="padding:5px; border-radius:4px;">
                             <option value="مندوب" ${u.role !== 'مدير النظام' ? 'selected' : ''}>مندوب</option>
                             <option value="مدير النظام" ${u.role === 'مدير النظام' ? 'selected' : ''}>مدير النظام</option>
                         </select>
                     </td>
                     <td>
-                        <button onclick="deleteUser(${rIndex}, '${u.username}')" class="secondary-btn" style="background:#e74c3c; color:white; padding:5px 15px; border:none;">
-                            <i class="fa-solid fa-trash"></i>
-                        </button>
+                        ${u.role !== 'مدير النظام' ? `<button onclick="openTabsModal(${rIndex}, '${u.username}', '${u.allowedTabs}')" class="primary-btn" style="padding:5px 10px; font-size:12px; background:#2980b9;">تخصيص الشاشات</button>` : `<span style="color:gray;">المدير له كل الصلاحيات</span>`}
+                    </td>
+                    <td>
+                        <button onclick="deleteUser(${rIndex}, '${u.username}')" class="secondary-btn" style="background:#e74c3c; color:white; padding:5px 15px; border:none;"><i class="fa-solid fa-trash"></i></button>
                     </td>
                 </tr>`;
-            });
-            table += `</table>`;
+            });            table += `</table>`;
             document.getElementById('users-list').innerHTML = table;
         }
     } catch(e) { document.getElementById('users-loading').style.display = 'none'; }
@@ -687,4 +724,62 @@ async function deleteUser(rowIndex, username) {
         if(result.success) loadUsers();
         else alert("خطأ: " + result.message);
     } catch(e) { alert("حدث خطأ."); }
+}
+function openTabsModal(rowIndex, username, allowedTabsStr) {
+    const allowed = allowedTabsStr.split(',');
+    const overlay = document.createElement('div');
+    overlay.id = 'tabs-modal-overlay';
+    overlay.style = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; display:flex; justify-content:center; align-items:center; direction:rtl;';
+    
+    // مربعات الاختيار للأقسام
+    const checkboxes = `
+        <label style="display:block; margin:10px 0; font-weight:bold;"><input type="checkbox" id="chk-scan" value="scan-tab" ${allowed.includes('scan-tab')?'checked':''}> إضافة معاملة</label>
+        <label style="display:block; margin:10px 0; font-weight:bold;"><input type="checkbox" id="chk-log" value="log-tab" ${allowed.includes('log-tab')?'checked':''}> سجل المعاملات</label>
+        <label style="display:block; margin:10px 0; font-weight:bold;"><input type="checkbox" id="chk-search" value="search-tab" ${allowed.includes('search-tab')?'checked':''}> البحث</label>
+        <label style="display:block; margin:10px 0; font-weight:bold;"><input type="checkbox" id="chk-chat" value="chat-tab" ${allowed.includes('chat-tab')?'checked':''}> غرفة المراسلة</label>
+        <label style="display:block; margin:10px 0; font-weight:bold;"><input type="checkbox" id="chk-stats" value="stats-tab" ${allowed.includes('stats-tab')?'checked':''}> التقارير والإحصائيات</label>
+        <label style="display:block; margin:10px 0; font-weight:bold;"><input type="checkbox" id="chk-memo" value="memo-tab" ${allowed.includes('memo-tab')?'checked':''}> إصدار المذكرات</label>
+    `;
+
+    const modal = document.createElement('div');
+    modal.style = 'background:#fff; padding:25px; border-radius:10px; width:90%; max-width:400px; box-shadow:0 10px 30px rgba(0,0,0,0.2);';
+    modal.innerHTML = `
+        <h3 style="margin-bottom:20px; color:var(--primary-color);"><i class="fa-solid fa-list-check"></i> شاشات المندوب: ${username}</h3>
+        <div style="background:#f8f9fa; padding:15px; border-radius:6px; border:1px solid #ddd; margin-bottom:20px;">
+            ${checkboxes}
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button onclick="saveUserTabs(${rowIndex})" id="save-tabs-btn" class="primary-btn" style="flex:1;">حفظ الصلاحيات</button>
+            <button onclick="document.getElementById('tabs-modal-overlay').remove()" class="secondary-btn" style="background:#e74c3c; color:white; flex:1; border:none;">إلغاء</button>
+        </div>
+    `;
+    overlay.appendChild(modal); 
+    document.body.appendChild(overlay);
+}
+
+async function saveUserTabs(rowIndex) {
+    const btn = document.getElementById('save-tabs-btn');
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الحفظ...';
+    btn.disabled = true;
+
+    // تجميع الشاشات المحددة
+    const selected = [];
+    const chks = ['chk-scan', 'chk-log', 'chk-search', 'chk-chat', 'chk-stats', 'chk-memo'];
+    chks.forEach(id => {
+        const el = document.getElementById(id);
+        if(el && el.checked) selected.push(el.value);
+    });
+
+    const allowedTabsStr = selected.join(',');
+
+    try {
+        const result = await secureFetch({ action: 'update_user_tabs', rowIndex: rowIndex, allowedTabs: allowedTabsStr });
+        if(result.success) {
+            document.getElementById('tabs-modal-overlay').remove();
+            loadUsers(); // تحديث الجدول
+        } else {
+            alert("حدث خطأ أثناء الحفظ.");
+            btn.innerText = 'حفظ الصلاحيات'; btn.disabled = false;
+        }
+    } catch(e) { alert("خطأ في الاتصال."); document.getElementById('tabs-modal-overlay').remove(); }
 }
