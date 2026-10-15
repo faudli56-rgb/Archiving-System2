@@ -55,6 +55,7 @@
                 <button onclick="showTab('chat-tab')" class="nav-btn"><i class="fa-solid fa-comments"></i> غرفة المراسلة</button>
                 <button onclick="showTab('stats-tab')" class="nav-btn"><i class="fa-solid fa-chart-pie"></i> التقارير</button>
                 <button onclick="showTab('memo-tab')" class="nav-btn"><i class="fa-solid fa-file-pen"></i> المذكرات</button>
+                <button id="nav-settings" onclick="showTab('settings-tab')" class="nav-btn"><i class="fa-solid fa-gear"></i> الإعدادات</button>
                 <button onclick="logout()" class="nav-btn logout-btn"><i class="fa-solid fa-power-off"></i> خروج</button>
             </div>
         </nav>
@@ -201,7 +202,31 @@
                 <div id="memo-links" style="display: none; margin-top: 20px; gap: 10px; display: flex;"></div>
             </div>
         </div>
-
+<!-- 6. قسم الإعدادات (للمدير فقط) -->
+        <div id="settings-tab" class="tab-content">
+            <div class="card" style="max-width: 800px;">
+                <h3><i class="fa-solid fa-users-gear"></i> إدارة المستخدمين والصلاحيات</h3>
+                
+                <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border: 1px dashed var(--primary-color);">
+                    <h4 style="color: var(--primary-color); margin-bottom: 10px;"><i class="fa-solid fa-user-plus"></i> إضافة مستخدم جديد</h4>
+                    <div class="search-bar" style="flex-wrap: wrap; gap: 10px;">
+                        <input type="text" id="new-username" placeholder="اسم المستخدم" style="flex: 1; min-width: 150px; padding: 10px;">
+                        <input type="password" id="new-password" placeholder="كلمة المرور (سيتم تشفيرها)" style="flex: 1; min-width: 150px; padding: 10px;">
+                        <select id="new-role" style="padding: 10px; border: 1px solid #ccc; border-radius: 6px; flex: 1; min-width: 150px;">
+                            <option value="مندوب">مندوب (صلاحيات محدودة)</option>
+                            <option value="مدير النظام">مدير النظام (صلاحيات كاملة)</option>
+                        </select>
+                        <button onclick="addUser()" class="primary-btn" style="flex: 1; min-width: 150px;"><i class="fa-solid fa-plus"></i> إضافة</button>
+                    </div>
+                    <p id="user-msg" style="margin-top:10px; font-weight:bold;"></p>
+                </div>
+                
+                <div id="users-loading" class="loading" style="display: none;">
+                    <i class="fa-solid fa-circle-notch fa-spin"></i> جاري تحميل المستخدمين...
+                </div>
+                <div id="users-list" class="table-responsive"></div>
+            </div>
+        </div>
     </div>
     <script src="app.js?v=3"></script>
 </body>
