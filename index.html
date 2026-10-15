@@ -48,16 +48,16 @@
     <i class="fa-solid fa-bars"></i>
 </div>
             
-            <div class="nav-links" id="nav-links">
-                <button onclick="showTab('scan-tab')" class="nav-btn active"><i class="fa-solid fa-camera"></i> إضافة معاملة</button>
-                <button onclick="showTab('log-tab')" class="nav-btn"><i class="fa-solid fa-list-check"></i> سجل المعاملات</button>
-                <button onclick="showTab('search-tab')" class="nav-btn"><i class="fa-solid fa-magnifying-glass"></i> البحث</button>
-                <button onclick="showTab('chat-tab')" class="nav-btn"><i class="fa-solid fa-comments"></i> غرفة المراسلة</button>
-                <button onclick="showTab('stats-tab')" class="nav-btn"><i class="fa-solid fa-chart-pie"></i> التقارير</button>
-                <button onclick="showTab('memo-tab')" class="nav-btn"><i class="fa-solid fa-file-pen"></i> المذكرات</button>
-                <button id="nav-settings" onclick="showTab('settings-tab')" class="nav-btn"><i class="fa-solid fa-gear"></i> الإعدادات</button>
-                <button onclick="logout()" class="nav-btn logout-btn"><i class="fa-solid fa-power-off"></i> خروج</button>
-            </div>
+           <div class="nav-links" id="nav-links">
+    <button id="nav-scan" onclick="showTab('scan-tab')" class="nav-btn active"><i class="fa-solid fa-camera"></i> إضافة معاملة</button>
+    <button id="nav-log" onclick="showTab('log-tab')" class="nav-btn"><i class="fa-solid fa-list-check"></i> سجل المعاملات</button>
+    <button id="nav-search" onclick="showTab('search-tab')" class="nav-btn"><i class="fa-solid fa-magnifying-glass"></i> البحث</button>
+    <button id="nav-chat" onclick="showTab('chat-tab')" class="nav-btn"><i class="fa-solid fa-comments"></i> غرفة المراسلة</button>
+    <button id="nav-stats" onclick="showTab('stats-tab')" class="nav-btn"><i class="fa-solid fa-chart-pie"></i> التقارير</button>
+    <button id="nav-memo" onclick="showTab('memo-tab')" class="nav-btn"><i class="fa-solid fa-file-pen"></i> المذكرات</button>
+    <button id="nav-settings" onclick="showTab('settings-tab')" class="nav-btn" style="display:none;"><i class="fa-solid fa-gear"></i> الإعدادات</button>
+    <button onclick="logout()" class="nav-btn logout-btn"><i class="fa-solid fa-power-off"></i> خروج</button>
+</div>
         </nav>
        <!-- 1. قسم مسح المستندات وإضافة المعاملات -->
         <div id="scan-tab" class="tab-content active-tab">
